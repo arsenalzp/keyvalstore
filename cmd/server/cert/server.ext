@@ -1,5 +1,0 @@
-subjectAltName = @san
-
-[san]
-DNS.1 = server.example.com
-DNS.2 = localhost
