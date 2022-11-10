@@ -28,36 +28,53 @@ Message size: 771 byte
 Project can be compiled and used for Linux, BSD, Windows, for both x86_64 and x86
 
 Build CLI and server:
+```
   % make all
+```
 
 Build CLI only:
+```
   % make cli
+```
 
 Build server only:
+```
   % make server
+```
 
 Clean all results:
+```
   % make clean
+```
 
 To generate SSL keys, certificates and openssl configs:
-  % ./scripts/generate-ssl.sh _path_
+```
+  % ./scripts/generate-ssl.sh path
+```
 
 For Container deployment Dockerfile is proveded.
 
 ### Run a server
 To run a server need to define CA certificate, server certificate and key, CRL file and underlaying hash-table storage:
+```
   % cd build
   % CRL_PATH="./list.crl" SERVER_KEY="./server.key" SERVER_CERT="./server.crt" ROOTCA_CERT="./rootCA.crt" \
     ./server -s hash
-
+```
 for SQLite sotrage:
+```
   % ./server -s sqlite
+```
 
 If server need to be bound to the certain NIC, run a server with -i flag:
+```
   % ./server -i eth0
+```
 
 To let a server lstening on the specific port, run a server with -s flag:
+```
   % ./server -s 1234
+```
 
 ### Use CLI
 Communication with a serer is done by CLI.
@@ -66,18 +83,32 @@ The following parameters are required:
 + client private key
 + CA certificate
 + server address and port in format server:port
+```
   % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port
+```
 
 SET command:
+```
   % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port set key=val
+```
+
 GET command:
+```
   % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port get key
+```
+
 DEL command:
+```
   % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port del key
+```
+
 IMPORT:
+```
   % echo '[{"key":"key1","value":"val1UPD"}]' |./cli --cert ./client.crt --key ./client.key \
     --CAcert ./rootCA.crt -s 127.0.0.1:6842 import
+```
+
 EXPORT:
+```
   % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s 127.0.0.1:6842 export
-
-
+```
