@@ -116,5 +116,6 @@ EXPORT:
 ### TODO
 + add expiration capability 
 ### DISCLAIMER
-Code is proveded AS IS under GPL-3.0 license 
-No code tests is proveded!
+Code is proveded AS IS under BSD license
+
+No code tests are proveded!
