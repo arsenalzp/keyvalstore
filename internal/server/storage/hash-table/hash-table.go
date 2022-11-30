@@ -117,15 +117,15 @@ func (ht *hashTable) Search(ctx context.Context, k string) (string, error) {
 	return "", nil
 }
 
-func (ht *hashTable) Import(ctx context.Context, data *[]entity.ImportData) (bool, error) {
-	for _, i := range *data {
+func (ht *hashTable) Import(ctx context.Context, data []entity.ImportData) (bool, error) {
+	for _, i := range data {
 		ht.Insert(ctx, i.Key, i.Value)
 	}
 
 	return true, nil
 }
 
-func (ht *hashTable) Export(ctx context.Context) (*[]entity.ExportData, error) {
+func (ht *hashTable) Export(ctx context.Context) ([]entity.ExportData, error) {
 	var exportItems []entity.ExportData
 
 	for _, n := range ht.table {
@@ -138,7 +138,7 @@ func (ht *hashTable) Export(ctx context.Context) (*[]entity.ExportData, error) {
 		}
 	}
 
-	return &exportItems, nil
+	return exportItems, nil
 }
 
 // Calculate hash function for a string

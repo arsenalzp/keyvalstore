@@ -11,10 +11,10 @@ import (
 )
 
 // handle IMPORT command
-func (ds *dataStruct) imp(ctx context.Context, data *[]byte, dataCh chan<- *[]byte, errCh chan<- error) {
+func (ds *dataStruct) imp(ctx context.Context, data []byte, dataCh chan<- []byte, errCh chan<- error) {
 	var importItems []entity.ImportData
 
-	trimImp := bytes.Trim(*data, "\x00")
+	trimImp := bytes.Trim(data, "\x00")
 
 	// deserialize client's JSON
 	err := json.Unmarshal(trimImp, &importItems)
@@ -23,11 +23,11 @@ func (ds *dataStruct) imp(ctx context.Context, data *[]byte, dataCh chan<- *[]by
 		return
 	}
 
-	_, err = ds.Import(ctx, &importItems)
+	_, err = ds.Import(ctx, importItems)
 	if err != nil {
 		errCh <- err
 		return
 	}
 
-	dataCh <- &[]byte{}
+	dataCh <- []byte{}
 }

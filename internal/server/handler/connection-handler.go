@@ -33,9 +33,9 @@ type dataStruct struct {
 func HandleCon(pCtx context.Context, con net.Conn, storage strg.Storage) {
 	var mu sync.Mutex
 	var buf []byte
-	var ds = &dataStruct{storage}                // init new data structure
-	var errCh chan error = make(chan error)      // channel to send errors
-	var dataCh chan *[]byte = make(chan *[]byte) // channel to send a date
+	var ds = &dataStruct{storage}              // init new data structure
+	var errCh chan error = make(chan error)    // channel to send errors
+	var dataCh chan []byte = make(chan []byte) // channel to send a date
 
 	var reader *bufio.Reader = bufio.NewReader(con)
 	var writer *bufio.Writer = bufio.NewWriter(con)
@@ -83,7 +83,7 @@ Loop:
 			key := buf[3:256] // get key value from the buffer
 			val := buf[256:]  // get value from the buffer
 
-			go ds.set(ctx, &key, &val, dataCh, errCh)
+			go ds.set(ctx, key, val, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
@@ -155,7 +155,7 @@ Loop:
 
 			key := buf[3:256]
 
-			go ds.get(ctx, &key, dataCh, errCh)
+			go ds.get(ctx, key, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
@@ -202,7 +202,7 @@ Loop:
 
 			case data := <-dataCh:
 				respBuf[0] = OK // the first byte indicates type of the message
-				copy(respBuf[1:], *data)
+				copy(respBuf[1:], data)
 				mu.Lock()
 				_, err := writer.Write(respBuf)
 				if err != nil {
@@ -227,7 +227,7 @@ Loop:
 
 			key := buf[3:256]
 
-			go ds.del(ctx, &key, dataCh, errCh)
+			go ds.del(ctx, key, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
@@ -340,7 +340,7 @@ Loop:
 
 			case data := <-dataCh:
 				respBuf[0] = OK // the first byte indicates type of the message
-				respBuf = append(respBuf, *data...)
+				respBuf = append(respBuf, data...)
 				respBuf = append(respBuf, '\x00')
 				mu.Lock()
 				_, err := writer.Write(respBuf[:])
@@ -370,7 +370,7 @@ Loop:
 			if buf[770] == '\x00' {
 				data := buf[3:]
 
-				go ds.imp(ctx, &data, dataCh, errCh)
+				go ds.imp(ctx, data, dataCh, errCh)
 
 			} else {
 				data, err := reader.ReadBytes('\x00')
@@ -384,7 +384,7 @@ Loop:
 
 				buf = append(buf[3:], data...)
 
-				go ds.imp(ctx, &buf, dataCh, errCh)
+				go ds.imp(ctx, buf, dataCh, errCh)
 			}
 
 			select {

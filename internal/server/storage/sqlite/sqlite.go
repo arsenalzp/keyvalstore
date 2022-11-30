@@ -115,8 +115,8 @@ func (db *Db) Search(ctx context.Context, k string) (string, error) {
 	return *value, nil
 }
 
-func (db *Db) Import(ctx context.Context, data *[]entity.ImportData) (bool, error) {
-	for _, item := range *data {
+func (db *Db) Import(ctx context.Context, data []entity.ImportData) (bool, error) {
+	for _, item := range data {
 		_, err := db.Insert(ctx, item.Key, item.Value)
 		if err != nil {
 			return false, err
@@ -126,7 +126,7 @@ func (db *Db) Import(ctx context.Context, data *[]entity.ImportData) (bool, erro
 	return true, nil
 }
 
-func (db *Db) Export(ctx context.Context) (*[]entity.ExportData, error) {
+func (db *Db) Export(ctx context.Context) ([]entity.ExportData, error) {
 	var exportRows []entity.ExportData
 
 	rows, err := db.searchAllStmt.QueryContext(ctx)
@@ -148,7 +148,7 @@ func (db *Db) Export(ctx context.Context) (*[]entity.ExportData, error) {
 		return nil, err
 	}
 
-	return &exportRows, nil
+	return exportRows, nil
 }
 
 func isDbExist(fname string) bool {
@@ -173,8 +173,13 @@ func createDb(fname string) error {
 
 func NewDb() (*Db, error) {
 	var db *Db
+	var fName string
 
-	fName := os.Getenv("SERVICE_DBNAME")
+	if v, ok := os.LookupEnv("SERVICE_DBNAME"); ok {
+		fName = v
+	} else {
+		fName = "default.db"
+	}
 
 	if !isDbExist(fName) {
 		if err := createDb(fName); err != nil {

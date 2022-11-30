@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"flag"
+	"fmt"
 	"gokeyval/internal/server/errors"
 	hndlr "gokeyval/internal/server/handler" // import handlers
 	"gokeyval/internal/server/storage"
@@ -18,6 +19,19 @@ import (
 	"path/filepath"
 	"time"
 )
+
+const helpMessage string = `
+Usage of server:
+-i define network interface to bind to
+-p define a port to listen on (default: 6842)
+-s define underlying storage
+
+The following environment variables are required:
+CRL_PATH - path to a CRL file
+SERVER_CERT - path to a server's certificate
+SERVER_KEY - path to a server private key
+ROOTCA_CERT - root CA certificate
+`
 
 var (
 	// Variables are used for network initialization
@@ -32,6 +46,9 @@ var (
 )
 
 func init() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%s\n", helpMessage)
+	}
 	flag.StringVar(&_nic, "i", "", "define network interface to bind to")
 	flag.StringVar(&_SERVICE_PORT, "p", "6842", "define a port to listen on")
 	flag.StringVar(&_SERVICE_STORAGE, "s", "", "define underlying storage (hash for hash table, sqlite for SQLite)")
@@ -40,49 +57,6 @@ func init() {
 	initTLS()     // 1) initialize TLS network config
 	initNetwork() // 2) initialize network config
 	initStorage() // 3) initialize underlying storage
-}
-
-func main() {
-	strg, err := storage.NewStrg(_SERVICE_STORAGE)
-	if err != nil {
-		err = errors.New("undefined storage type", errors.StorageKindUndef, err)
-		log.Fatal(err) // followed by os.Exit(1)
-	}
-
-	ln, err := net.Listen("tcp", _addr)
-	if err != nil {
-		err = errors.New("network error", errors.NetworkErr, err)
-		log.Fatal(err) // followed by os.Exit(1)
-	}
-
-	log.Printf("service is listening on port %s...\n", _SERVICE_PORT)
-
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			err = errors.New("network error", errors.NetworkCallErr, err)
-			log.Println(err)
-			continue
-		}
-
-		tlsConn := tls.Server(conn, &_tlsConf)
-		//tlsConn.SetDeadline(time.Now().Add(timeoutIO))
-
-		err = tlsConn.Handshake()
-		if err != nil {
-			err = errors.New("network error", errors.NetworkCallErr, err)
-			log.Println(err)
-			continue
-		}
-
-		ctx := context.Background()
-		if err != nil {
-			err = errors.New("network error", errors.NetworkCallErr, err)
-			log.Println(err)
-		}
-
-		go hndlr.HandleCon(ctx, tlsConn, strg)
-	}
 }
 
 // initTLS initialize TLS configration by loading server's certificate,
@@ -265,4 +239,47 @@ func parseCRL(crlPath string) (*pkix.CertificateList, error) {
 	}
 
 	return crl, nil
+}
+
+func main() {
+	strg, err := storage.NewStrg(_SERVICE_STORAGE)
+	if err != nil {
+		err = errors.New("undefined storage type", errors.StorageKindUndef, err)
+		log.Fatal(err) // followed by os.Exit(1)
+	}
+
+	ln, err := net.Listen("tcp", _addr)
+	if err != nil {
+		err = errors.New("network error", errors.NetworkErr, err)
+		log.Fatal(err) // followed by os.Exit(1)
+	}
+
+	log.Printf("service is listening on port %s...\n", _SERVICE_PORT)
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			err = errors.New("network error", errors.NetworkCallErr, err)
+			log.Println(err)
+			continue
+		}
+
+		tlsConn := tls.Server(conn, &_tlsConf)
+		//tlsConn.SetDeadline(time.Now().Add(timeoutIO))
+
+		err = tlsConn.Handshake()
+		if err != nil {
+			err = errors.New("network error", errors.NetworkCallErr, err)
+			log.Println(err)
+			continue
+		}
+
+		ctx := context.Background()
+		if err != nil {
+			err = errors.New("network error", errors.NetworkCallErr, err)
+			log.Println(err)
+		}
+
+		go hndlr.HandleCon(ctx, tlsConn, strg)
+	}
 }

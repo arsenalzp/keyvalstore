@@ -9,7 +9,7 @@ import (
 )
 
 // export EXPORT command
-func (ds *dataStruct) exp(ctx context.Context, dataCh chan<- *[]byte, errCh chan<- error) {
+func (ds *dataStruct) exp(ctx context.Context, dataCh chan<- []byte, errCh chan<- error) {
 	exports, err := ds.Export(ctx)
 	if err != nil {
 		errCh <- err
@@ -22,5 +22,5 @@ func (ds *dataStruct) exp(ctx context.Context, dataCh chan<- *[]byte, errCh chan
 		return
 	}
 
-	dataCh <- &data
+	dataCh <- data
 }

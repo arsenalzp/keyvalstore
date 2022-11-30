@@ -16,8 +16,8 @@ type Storage interface {
 	Search(context.Context, string) (string, error)
 	Insert(context.Context, string, string) (bool, error)
 	Delete(context.Context, string) (bool, error)
-	Import(context.Context, *[]entity.ImportData) (bool, error)
-	Export(context.Context) (*[]entity.ExportData, error)
+	Import(context.Context, []entity.ImportData) (bool, error)
+	Export(context.Context) ([]entity.ExportData, error)
 }
 
 // Initialize the underlying storage defined by kind variable
