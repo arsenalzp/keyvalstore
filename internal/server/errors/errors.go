@@ -56,6 +56,13 @@ type errCommon struct {
 }
 
 func (e errCommon) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf(
+			"%s, code: %s",
+			e.Msg, e.Code,
+		)
+	}
+
 	return fmt.Sprintf(
 		"%s, code: %s, %s",
 		e.Msg, e.Code, e.Err,
