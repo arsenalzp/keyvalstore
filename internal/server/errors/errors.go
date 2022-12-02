@@ -47,6 +47,11 @@ const (
 	StorageKindUndef  = "ESTRG-4036"
 	CRLOpenErr        = "ETLS-3037"
 	CRLStatErr        = "ETLS-4038"
+	HashTabInsErr     = "EHTAB-0039"
+	HashTabDelErr     = "EHTAB-1040"
+	HashTabExpErr     = "EHTAB-2041"
+	HashTabImpErr     = "EHTAB-3042"
+	HashTabSrchErr    = "EHTAB-4043"
 )
 
 type errCommon struct {
