@@ -4,6 +4,7 @@ package ht
 
 import (
 	"context"
+	"gokeyval/internal/server/errors"
 	"gokeyval/internal/server/storage/entity"
 	"sync"
 )
@@ -26,119 +27,172 @@ type hashTable struct {
 }
 
 func (ht *hashTable) Insert(ctx context.Context, k, v string) (bool, error) {
-	i := hash(k)
+	dataCh := make(chan struct{}, 1)
 
-	var n *Node = ht.table[i]
-	if n == nil {
-		ht.table[i] = &Node{
+	go func(h *hashTable, c chan<- struct{}, k string) {
+		i := hash(k)
+
+		var n *Node = ht.table[i]
+		if n == nil {
+			h.table[i] = &Node{
+				key:  k,
+				val:  v,
+				next: nil,
+			}
+			h.table[i].Lock()
+			defer h.table[i].Unlock()
+			h.size++
+			c <- struct{}{}
+			return
+		}
+
+		var prev *Node
+		for n != nil {
+			if n.key == k {
+				n.Lock()
+				n.val = v
+				defer n.Unlock()
+				c <- struct{}{}
+				return
+			}
+			prev = n
+			n = n.next
+		}
+
+		prev.next = &Node{
 			key:  k,
 			val:  v,
 			next: nil,
 		}
-		ht.table[i].Lock()
-		defer ht.table[i].Unlock()
-		ht.size++
+		prev.next.Lock()
+		defer prev.next.Unlock()
+		h.size++
+
+		c <- struct{}{}
+	}(ht, dataCh, k)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("hash table error: canceled", errors.HashTabInsErr, nil)
+		return false, err
+	case <-dataCh:
 		return true, nil
 	}
-
-	var prev *Node
-	for n != nil {
-		if n.key == k {
-			n.Lock()
-			n.val = v
-			defer n.Unlock()
-			return true, nil
-		}
-		prev = n
-		n = n.next
-	}
-
-	prev.next = &Node{
-		key:  k,
-		val:  v,
-		next: nil,
-	}
-	prev.next.Lock()
-	defer prev.next.Unlock()
-	ht.size++
-
-	return true, nil
 }
 
 func (ht *hashTable) Delete(ctx context.Context, k string) (bool, error) {
-	i := hash(k)
+	dataCh := make(chan struct{}, 1)
 
-	n := ht.table[i]
-	if n == nil {
-		return false, nil
-	}
+	go func(h *hashTable, c chan<- struct{}, k string) {
+		i := hash(k)
 
-	var prev *Node
-	for n != nil {
-		if n.key == k {
-			if prev == nil {
-				ht.table[i].Lock()
-				defer ht.table[i].Unlock()
-				ht.table[i] = n.next
-				ht.size--
-				return true, nil
-			}
-
-			prev.Lock()
-			defer prev.Unlock()
-			prev.next = n.next
-			ht.size--
-
-			return true, nil
+		n := h.table[i]
+		if n == nil {
+			c <- struct{}{}
+			return
 		}
-		prev = n
-		n = n.next
-	}
 
-	return false, nil
+		var prev *Node
+		for n != nil {
+			if n.key == k {
+				if prev == nil {
+					h.table[i].Lock()
+					defer h.table[i].Unlock()
+					h.table[i] = n.next
+					h.size--
+					c <- struct{}{}
+					return
+				}
+
+				prev.Lock()
+				defer prev.Unlock()
+				prev.next = n.next
+				h.size--
+				c <- struct{}{}
+				return
+			}
+			prev = n
+			n = n.next
+		}
+	}(ht, dataCh, k)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("hash table error: canceled", errors.HashTabDelErr, nil)
+		return false, err
+	case <-dataCh:
+		return true, nil
+	}
 }
 
 func (ht *hashTable) Search(ctx context.Context, k string) (string, error) {
-	i := hash(k)
+	dataCh := make(chan string, 1)
 
-	var n *Node = ht.table[i]
+	go func(h *hashTable, c chan<- string, k string) {
+		i := hash(k)
 
-	if n == nil {
-		return "", nil
-	}
+		var n *Node = ht.table[i]
 
-	for n != nil {
-		if n.key == k {
-			return n.val, nil
+		if n == nil {
+			c <- ""
 		}
-		n = n.next
-	}
 
-	return "", nil
+		for n != nil {
+			if n.key == k {
+				c <- n.val
+			}
+			n = n.next
+		}
+
+		c <- ""
+	}(ht, dataCh, k)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("hash table error: canceled", errors.HashTabSrchErr, nil)
+		return "", err
+	case value := <-dataCh:
+		return value, nil
+	}
 }
 
 func (ht *hashTable) Import(ctx context.Context, data []entity.ImportData) (bool, error) {
 	for _, i := range data {
-		ht.Insert(ctx, i.Key, i.Value)
+		_, err := ht.Insert(ctx, i.Key, i.Value)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	return true, nil
 }
 
 func (ht *hashTable) Export(ctx context.Context) ([]entity.ExportData, error) {
-	var exportItems []entity.ExportData
+	dataCh := make(chan []entity.ExportData, 1)
 
-	for _, n := range ht.table {
-		if n == nil {
-			continue
+	go func(h *hashTable, c chan<- []entity.ExportData) {
+		var exportItems []entity.ExportData
+
+		for _, n := range ht.table {
+			if n == nil {
+				continue
+			}
+			for n != nil {
+				exportItems = append(exportItems, entity.ExportData{n.key, n.val})
+				n = n.next
+			}
 		}
-		for n != nil {
-			exportItems = append(exportItems, entity.ExportData{n.key, n.val})
-			n = n.next
-		}
+
+		c <- exportItems
+	}(ht, dataCh)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("hash table error: canceled", errors.HashTabExpErr, nil)
+		return nil, err
+	case value := <-dataCh:
+		return value, nil
 	}
-
-	return exportItems, nil
 }
 
 // Calculate hash function for a string
