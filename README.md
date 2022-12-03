@@ -58,22 +58,43 @@ For Container deployment Dockerfile is provided.
 To run the server need to define CA certificate, the server certificate and key, CRL file and underlying hash-table storage:
 ```
   % cd build
-  % CRL_PATH="./list.crl" SERVER_KEY="./server.key" SERVER_CERT="./server.crt" ROOTCA_CERT="./rootCA.crt" \
-    ./server -s hash
+  % CRL_PATH="./list.crl" \
+    SERVER_KEY="./server.key" \
+    SERVER_CERT="./server.crt" \
+    ROOTCA_CERT="./rootCA.crt" \
+    SERVICE_STORAGE="hash" \
+    ./server
 ```
-for SQLite sotrage:
+for SQLite sotrage, set SERVICE_STORAGE to "sqlite :
 ```
-  % ./server -s sqlite
+  % SERVICE_STORAGE="sqlite" \
+    CRL_PATH="./list.crl" \
+    SERVER_KEY="./server.key" \
+    SERVER_CERT="./server.crt" \
+    ROOTCA_CERT="./rootCA.crt" \
+    ./server
 ```
 
-If server need to be bound to the certain NIC, run the server with -i flag:
+If the server need to be bound to the certain NIC, define SERVICE_NIC env:
 ```
-  % ./server -i eth0
+  % SERVICE_NIC="lo" \
+    CRL_PATH="./list.crl" \
+    SERVER_KEY="./server.key" \
+    SERVER_CERT="./server.crt" \
+    ROOTCA_CERT="./rootCA.crt" \
+    SERVICE_STORAGE="hash" \
+    ./server
 ```
 
-To let a server lstening on the specific port, run the server with -s flag:
+To let the server lstening on the specific port, define SERVICE_PORT env:
 ```
-  % ./server -s 1234
+  % SERVICE_PORT="1234" \
+    CRL_PATH="./list.crl" \
+    SERVER_KEY="./server.key" \
+    SERVER_CERT="./server.crt" \
+    ROOTCA_CERT="./rootCA.crt" \
+    SERVICE_STORAGE="hash" \
+    ./server
 ```
 
 ### Use CLI
