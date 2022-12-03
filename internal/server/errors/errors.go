@@ -11,8 +11,8 @@ import (
 
 const (
 	NetworkErrIpaddrs = "ESRV-0001"
-	NetworkErr        = "ESRV-0002"
-	NetworkCallErr    = "ESRV-0003"
+	NetworkErr        = "ESRV-1002"
+	NetworkCallErr    = "ESRV-2003"
 	ReadClientErr     = "ESRV-0004"
 	WriteClientErr    = "ESRV-0005"
 	ServerIntErr      = "ESRV-0006"
@@ -41,10 +41,10 @@ const (
 	CAPoolLoadErr     = "ETLS-1030"
 	CRLValidErr       = "ETLS-3031"
 	CRLCertRevokErr   = "ETLS-4032"
-	StorageNilErr     = "ESTRG-1033"
-	StorageInitErr    = "ESTRG-2034"
-	StorageKindErr    = "ESTRG-3035"
-	StorageKindUndef  = "ESTRG-4036"
+	StorageNilErr     = "ESTRG-0033"
+	StorageInitErr    = "ESTRG-1034"
+	StorageKindErr    = "ESTRG-2035"
+	StorageKindUndef  = "ESTRG-3036"
 	CRLOpenErr        = "ETLS-3037"
 	CRLStatErr        = "ETLS-4038"
 	HashTabInsErr     = "EHTAB-0039"
@@ -52,6 +52,10 @@ const (
 	HashTabExpErr     = "EHTAB-2041"
 	HashTabImpErr     = "EHTAB-3042"
 	HashTabSrchErr    = "EHTAB-4043"
+	NetworkInitErr    = "ESRV-3044"
+	NetworkInitTLSErr = "ESRV-4045"
+	SrvStartErr       = "ESRV-5046"
+	SrvStopErr        = "ESRV-6047"
 )
 
 type errCommon struct {

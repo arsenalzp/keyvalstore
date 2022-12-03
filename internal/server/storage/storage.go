@@ -20,7 +20,7 @@ type Storage interface {
 	Export(context.Context) ([]entity.ExportData, error)
 }
 
-// Initialize the underlying storage defined by kind variable
+// Initialize the underlying storage defined by storage variable
 // Returns initialized storage
 func NewStrg(kind string) (Storage, error) {
 	switch kind {
@@ -38,9 +38,9 @@ func NewStrg(kind string) (Storage, error) {
 		}
 
 		return db, nil
+	case "":
+		return nil, errors.New("storage type is undefined", errors.StorageKindUndef, nil)
 	default:
-		err := errors.New("storage kind is unknown", errors.StorageKindErr, nil)
-
-		return nil, err
+		return nil, errors.New("storage type is unknown", errors.StorageKindErr, nil)
 	}
 }

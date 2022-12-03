@@ -25,6 +25,10 @@ const (
 
 type Cmd = string
 
+type Handler interface {
+	HandleCon(context.Context, net.Conn, strg.Storage)
+}
+
 type dataStruct struct {
 	strg.Storage
 }
