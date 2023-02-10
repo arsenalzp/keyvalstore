@@ -10,9 +10,10 @@ import (
 
 // handle DEL command
 func (ds *dataStruct) del(ctx context.Context, key []byte, dataCh chan<- []byte, errCh chan<- error) {
-	key = bytes.Trim(key, "\x00")
+	clearKey := bytes.Trim(key, string(EOT))
+	clearKey = bytes.Trim(clearKey, "\x00")
 
-	_, err := ds.Delete(ctx, string(key))
+	_, err := ds.Delete(ctx, string(clearKey))
 	if err != nil {
 		errCh <- err
 		return

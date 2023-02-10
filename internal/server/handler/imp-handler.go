@@ -14,10 +14,11 @@ import (
 func (ds *dataStruct) imp(ctx context.Context, data []byte, dataCh chan<- []byte, errCh chan<- error) {
 	var importItems []entity.ImportData
 
-	trimImp := bytes.Trim(data, "\x00")
+	clearImport := bytes.Trim(data, string(EOT))
+	clearImport = bytes.Trim(clearImport, "\x00")
 
 	// deserialize client's JSON
-	err := json.Unmarshal(trimImp, &importItems)
+	err := json.Unmarshal(clearImport, &importItems)
 	if err != nil {
 		errCh <- err
 		return

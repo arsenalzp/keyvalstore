@@ -10,9 +10,13 @@ import (
 
 // handle SET command
 func (ds *dataStruct) set(ctx context.Context, key, val []byte, dataCh chan<- []byte, errCh chan<- error) {
-	key = bytes.Trim(key, "\x00")
-	val = bytes.Trim(val, "\x00")
-	_, err := ds.Insert(ctx, string(key), string(val))
+	clearKey := bytes.Trim(key, string(EOT))
+	clearKey = bytes.Trim(clearKey, "\x00")
+
+	clearValue := bytes.Trim(val, string(EOT))
+	clearValue = bytes.Trim(clearValue, "\x00")
+
+	_, err := ds.Insert(ctx, string(clearKey), string(clearValue))
 	if err != nil {
 		errCh <- err
 		return

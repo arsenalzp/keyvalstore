@@ -12,6 +12,7 @@ import (
 
 	cmd "github.com/arsenalzp/keyvalstore/go-client/client/command"
 	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
+	"github.com/arsenalzp/keyvalstore/go-client/internal/util"
 )
 
 type Client struct {
@@ -20,15 +21,14 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	RootcaPath  string
-	CrtPath     string
-	PrivkeyPath string
-	IP          net.IP
-	Port        uint16
-	Address     string
-	tlsConf     *tls.Config
+	RootCAPath      string
+	CertificatePath string
+	PrivateKeyPath  string
+	Port            uint16
+	Address         string
 }
 
+// Connect to a server. Connect returns *Client structure
 func (c *ClientConfig) Connect() (*Client, error) {
 	tlsConfig, err := c.initTLS()
 	if err != nil {
@@ -36,12 +36,14 @@ func (c *ClientConfig) Connect() (*Client, error) {
 		return nil, err
 	}
 
-	conn, err := net.Dial("tcp", c.IP.String()+":"+fmt.Sprint(c.Port))
+	// Call to a server
+	conn, err := net.Dial("tcp", c.Address+":"+fmt.Sprint(c.Port))
 	if err != nil {
 		err = errors.New("connection error", errors.NetworkErr, err)
 		return nil, err
 	}
 
+	// Initialize TLS connection for the given connection and TLS Config
 	tlsConn := tls.Client(conn, tlsConfig)
 
 	err = tlsConn.Handshake()
@@ -53,11 +55,11 @@ func (c *ClientConfig) Connect() (*Client, error) {
 
 	clientConnection := &Client{
 		conn: tlsConn,
-		mux:  sync.Mutex{},
 	}
 	return clientConnection, nil
 }
 
+// Close connection with a server
 func (c *Client) Close() error {
 	if err := c.conn.Close(); err != nil {
 		return err
@@ -66,43 +68,126 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) Get(ctx context.Context, k string) (string, error) {
-	dataCh := make(chan []byte, 1)
+// Get a value for a given key. Get returns []byte or error in case of failure
+func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
+	dataChan := make(chan []byte, 1)
+	errChan := make(chan error, 1)
+
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	go cmd.Get(c.conn, dataCh, k)
+
+	go cmd.Get(c.conn, dataChan, errChan, key)
 
 	select {
 	case <-ctx.Done():
-		return "", nil
-	case val := <-dataCh:
-		return string(val), nil
+		err := errors.New("get command interrupted", errors.GetCancelErr, ctx.Err())
+		return nil, err
+	case val := <-dataChan:
+		return val, nil
+	case err := <-errChan:
+		fmt.Printf("error to retrieve key %s: %s\n", key, err)
+		return nil, err
 	}
 }
 
-func (c *Client) Set(ctx context.Context, k, v string) {
+// Save key=value pair on a server. Set return error in case of failure
+func (c *Client) Set(ctx context.Context, key, value string) error {
+	dataChan := make(chan struct{}, 1)
+	errChan := make(chan error, 1)
 
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	go cmd.Set(c.conn, dataChan, errChan, key, value)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("get command interrupted", errors.SetCancelErr, ctx.Err())
+		return err
+	case <-dataChan:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }
 
-func (c *Client) Del(ctx context.Context, k string) {
+// Delete key=value pair on a server. Del returns error in case of failure
+func (c *Client) Del(ctx context.Context, key string) error {
+	dataChan := make(chan struct{}, 1)
+	errChan := make(chan error, 1)
 
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	go cmd.Del(c.conn, dataChan, errChan, key)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("get operation interrupted", errors.DelCancelErr, ctx.Err())
+		return err
+	case <-dataChan:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }
 
-func (c *Client) Import(ctx context.Context) {
+// Import key=value pairs into a server. Import returns error in case of failure
+func (c *Client) Import(ctx context.Context, data []byte) error {
+	dataChan := make(chan struct{}, 1)
+	errChan := make(chan error, 1)
 
+	err := util.ValidateData([]byte(data)) // validate data befor sending
+	if err != nil {
+		err = errors.New("import operation failed: validation of input failed", errors.ReadStdinErr, err)
+		return err
+	}
+
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	go cmd.Import(c.conn, dataChan, errChan, data)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("import operation interrupted", errors.DelCancelErr, ctx.Err())
+		return err
+	case <-dataChan:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }
 
-func (c *Client) Export(ctx context.Context) {
+// Export key=value pairs from a server. Export returns []byte or error in case of failure
+func (c *Client) Export(ctx context.Context) ([]byte, error) {
+	dataChan := make(chan []byte, 1)
+	errChan := make(chan error, 1)
 
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	go cmd.Export(c.conn, dataChan, errChan)
+
+	select {
+	case <-ctx.Done():
+		err := errors.New("get operation interrupted", errors.DelCancelErr, ctx.Err())
+		return nil, err
+	case data := <-dataChan:
+		return data, nil
+	case err := <-errChan:
+		return nil, err
+	}
 }
 
+// Initialize TLS Config. initTLS returns *tls.Config or error in case of failure
 func (c *ClientConfig) initTLS() (*tls.Config, error) {
-	crt, err := tls.LoadX509KeyPair(c.CrtPath, c.PrivkeyPath)
+	crt, err := tls.LoadX509KeyPair(c.CertificatePath, c.PrivateKeyPath)
 	if err != nil {
 		return nil, errors.New("unabel to load certificate or key", errors.NetworkErr, err)
 	}
 
-	rootCA, err := ioutil.ReadFile(c.RootcaPath)
+	rootCA, err := ioutil.ReadFile(c.RootCAPath)
 	if err != nil {
 		return nil, errors.New("unabel to load root CA file", errors.NetworkErr, err)
 	}

@@ -5,90 +5,59 @@ package command
 import (
 	"bufio"
 	"fmt"
-	"gokeyval/internal/cli/errors"
-	"io"
-	"os"
-	"strings"
+	"net"
 
-	"github.com/spf13/cobra"
+	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
 )
 
-func init() {
-	rootCmd.AddCommand(setCmd)
-	setCmd.Flags().StringVarP(&serverAddress, "server", "s", "", "use server and port for connection")
-	setCmd.Flags().StringVarP(&client_cert, "cert", "c", "", "path to certificate file")
-	setCmd.Flags().StringVarP(&privkey_cert, "key", "k", "", "path to private key file")
-	setCmd.Flags().StringVarP(&rootca_cert, "CAcert", "r", "", "path to CA certificate file")
-}
+// Set key and value pair
+func Set(con net.Conn, dataChan chan<- struct{}, errChan chan<- error, key string, value string) {
+	var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 512B
 
-var setCmd = &cobra.Command{
-	Use:   "set [--server] key=val",
-	Short: "Set key=value",
-	Args:  cobra.MinimumNArgs(0),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		var substr []string
-		var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 512B
-		var respBuf [64]byte
+	// Check input, neither key nor value should be empty
+	if key == "" {
+		err := errors.New("set command error", errors.KeyEmptyErr, nil)
+		errChan <- err
+	} else if value == "" {
+		err := errors.New("set command error", errors.ValueEmptyErr, nil)
+		errChan <- err
+		return
+	}
 
-		con, err := createConnection()
-		if err != nil {
-			return err
-		}
+	writer := bufio.NewWriter(con) // connection writer to send the data to the server
 
-		defer con.Close()
+	copy(buf[0:3], []byte(SET))
+	copy(buf[3:259], []byte(key))
+	copy(buf[259:], []byte(value))
+	buf[771] = EOT
 
-		// read data from arguments
-		// else read data from stdin
-		if len(args) > 0 {
-			substr = strings.SplitN(args[0], "=", 2) // split key and value from args
-		} else {
-			r := bufio.NewReader(os.Stdin)
-			input, err := r.ReadString(byte('\n')) // read data from stdin
-			if err != nil {
-				err = errors.New("set command error", errors.ReadStdinErr, err)
-				return err
-			}
-			substr = strings.Split(input, "=") // split key and value from stdin
-		}
+	_, err := writer.Write(buf[:]) // write command, key and val
+	if err != nil {
+		err = errors.New("set operation error", errors.WriteServerErr, err)
+		errChan <- err
+	}
 
-		if len(substr) == 1 {
-			return fmt.Errorf("key and val shouldn't be empty")
-		}
+	err = writer.Flush()
+	if err != nil {
+		err = errors.New("set operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
+	}
 
-		key := substr[0] // key
-		val := substr[1] // value
+	reader := bufio.NewReader(con)
+	respBuf, err := reader.ReadBytes(EOT)
+	if err != nil {
+		err = errors.New("set operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
+	}
 
-		writer := bufio.NewWriter(con)
+	if respBuf[0] == errors.ServerResponseError {
+		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
+		err = errors.New("set operation error", errors.SetServerRespErr, err)
+		errChan <- err
+		return
+	}
 
-		copy(buf[0:3], []byte("set"))
-		copy(buf[3:259], []byte(key))
-		copy(buf[259:], []byte(val))
-
-		_, err = writer.Write(buf[:]) // write command, key and val
-		if err != nil {
-			err = errors.New("set command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		err = writer.Flush()
-		if err != nil {
-			err = errors.New("set command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
-		if err != nil {
-			err = errors.New("set command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
-			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("set command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		return nil
-	},
+	dataChan <- struct{}{}
 }

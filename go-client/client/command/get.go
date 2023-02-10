@@ -6,49 +6,50 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
-	"io"
 	"net"
-	"os"
+
+	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
 )
 
-func Get(con *net.Conn, c chan<- byte[], k string) {
-	var respBuf [256]byte
+// Get a value for a give key
+func Get(con net.Conn, dataChan chan<- []byte, errChan chan<- error, key string) {
 	var buf [MESSAGE_SIZE]byte
 
-	writer := bufio.NewWriter(con)
+	writer := bufio.NewWriter(con) // connection writer to send the data to the server
 
-	copy(buf[0:3], []byte("get"))
-	copy(buf[3:], []byte(k))
+	copy(buf[0:3], []byte(GET))
+	copy(buf[3:259], []byte(key))
+	buf[771] = EOT
 
-	_, err = writer.Write(buf[:]) // write command, key and val
+	_, err := writer.Write(buf[:]) // write command, key and val
 	if err != nil {
-		err = errors.New("get command error", errors.WriteServerErr, err)
-		return err
+		err = errors.New("get operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
 	}
 
 	err = writer.Flush()
 	if err != nil {
-		err = errors.New("get command error", errors.WriteServerErr, err)
-		return err
+		err = errors.New("get operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
 	}
 
-	_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
+	reader := bufio.NewReader(con)
+	respBuf, err := reader.ReadBytes(EOT) // waiting for server response
 	if err != nil {
-		err = errors.New("get command failed", errors.WriteServerErr, err)
-		fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
-		return err
+		err = errors.New("get operation failed", errors.WriteServerErr, err)
+		errChan <- err
+		return
 	}
 
-	respCode := respBuf[:1]
-	if respCode[0] != 'O' {
-		err = fmt.Errorf("%s", respBuf[1:])
-		err = errors.New("get command failed", errors.WriteServerErr, err)
-		fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
-		return err
+	if respBuf[0] == errors.ServerResponseError {
+		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
+		err = errors.New("get operation error", errors.SetServerRespErr, err)
+		errChan <- err
+		return
 	}
 
-	fmt.Fprintf(os.Stdout, "%s\n", bytes.TrimRight(respBuf[1:], "\x00"))
-
-	return nil
+	data := bytes.TrimRight(respBuf[1:], string(EOT))
+	dataChan <- data
 }

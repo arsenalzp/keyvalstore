@@ -5,71 +5,49 @@ package command
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"os"
+	"net"
 
 	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
-
-	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(delCmd)
-	delCmd.Flags().StringVarP(&serverAddress, "server", "s", "", "use server and port for connection")
-	delCmd.Flags().StringVarP(&client_cert, "cert", "c", "", "path to certificate file")
-	delCmd.Flags().StringVarP(&privkey_cert, "key", "k", "", "path to private key file")
-	delCmd.Flags().StringVarP(&rootca_cert, "CAcert", "r", "", "path to CA certificate file")
-}
+// Delete a value for a given key
+func Del(con net.Conn, dataChan chan<- struct{}, errChan chan<- error, key string) {
+	var buf [MESSAGE_SIZE]byte
 
-var delCmd = &cobra.Command{
-	Use:   "del [--server] key",
-	Short: "Delete a key",
-	Args:  cobra.MinimumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		var respBuf [64]byte
-		var buf [MESSAGE_SIZE]byte
+	writer := bufio.NewWriter(con) // connection writer to send the data to the server
 
-		con, err := createConnection()
-		if err != nil {
-			return err
-		}
+	copy(buf[0:3], []byte(DELETE))
+	copy(buf[3:], []byte(key))
+	buf[771] = EOT
 
-		defer con.Close()
+	_, err := writer.Write(buf[:])
+	if err != nil {
+		err = errors.New("del operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
+	}
 
-		key := args[0]
+	err = writer.Flush()
+	if err != nil {
+		err = errors.New("del operation error", errors.WriteServerErr, err)
+		errChan <- err
+		return
+	}
 
-		writer := bufio.NewWriter(con)
+	reader := bufio.NewReader(con)
+	respBuf, err := reader.ReadBytes(EOT) // waiting for server response
+	if err != nil {
+		err = errors.New("del operation failed", errors.WriteServerErr, err)
+		errChan <- err
+		return
+	}
 
-		copy(buf[0:3], []byte("del"))
-		copy(buf[3:], []byte(key))
+	if respBuf[0] == errors.ServerResponseError {
+		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
+		err = errors.New("del operation error", errors.SetServerRespErr, err)
+		errChan <- err
+		return
+	}
 
-		_, err = writer.Write(buf[:])
-		if err != nil {
-			err = errors.New("del command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		err = writer.Flush()
-		if err != nil {
-			err = errors.New("del command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
-		if err != nil {
-			err = errors.New("del command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
-			return err
-		}
-
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
-			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("del command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
-			return err
-		}
-
-		return nil
-	},
+	dataChan <- struct{}{}
 }
