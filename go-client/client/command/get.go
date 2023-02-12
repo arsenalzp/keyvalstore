@@ -45,11 +45,13 @@ func Get(con net.Conn, dataChan chan<- []byte, errChan chan<- error, key string)
 
 	if respBuf[0] == errors.ServerResponseError {
 		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
-		err = errors.New("get operation error", errors.SetServerRespErr, err)
+		err = errors.New("get operation error", errors.GetServerRespErr, err)
 		errChan <- err
 		return
 	}
 
-	data := bytes.TrimRight(respBuf[1:], string(EOT))
-	dataChan <- data
+	respBuf = bytes.TrimRight(respBuf[1:], string(EOT))
+	respBuf = bytes.TrimRight(respBuf, "\x00")
+
+	dataChan <- respBuf
 }

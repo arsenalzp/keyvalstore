@@ -17,7 +17,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const MESSAGE_SIZE = 771
+const (
+	MESSAGE_SIZE = 772
+	EOT          = '\u0004' // End-Of-Trasmission character
+	DELETE       = "del"
+	GET          = "get"
+	SET          = "set"
+	EXPORT       = "exp"
+	IMPORT       = "imp"
+)
 
 var serverAddress string
 var client_cert, privkey_cert, rootca_cert string

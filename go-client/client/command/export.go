@@ -44,12 +44,14 @@ func Export(con net.Conn, dataChan chan<- []byte, errChan chan<- error) {
 
 	if respBuf[0] == errors.ServerResponseError {
 		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
-		err = errors.New("export operation error", errors.SetServerRespErr, err)
+		err = errors.New("export operation error", errors.ExpServerRespErr, err)
 		errChan <- err
 		return
 	}
 
-	respBuf = bytes.TrimRight(respBuf[1:], string(EOT))
+	// Trim response buffer: delete NULL and EOT bytes
+	respBuf = bytes.TrimRight(respBuf[1:], "\x00")
+	respBuf = bytes.TrimRight(respBuf, string(EOT))
 
 	dataChan <- respBuf
 }

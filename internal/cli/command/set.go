@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"fmt"
 	"gokeyval/internal/cli/errors"
-	"io"
 	"os"
 	"strings"
 
@@ -28,7 +27,6 @@ var setCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var substr []string
 		var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 512B
-		var respBuf [64]byte
 
 		con, err := createConnection()
 		if err != nil {
@@ -63,6 +61,7 @@ var setCmd = &cobra.Command{
 		copy(buf[0:3], []byte("set"))
 		copy(buf[3:259], []byte(key))
 		copy(buf[259:], []byte(val))
+		buf[771] = EOT
 
 		_, err = writer.Write(buf[:]) // write command, key and val
 		if err != nil {
@@ -76,16 +75,16 @@ var setCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
+		reader := bufio.NewReader(con)
+		respBuf, err := reader.ReadBytes(EOT) // waiting for server response
 		if err != nil {
-			err = errors.New("set command error", errors.WriteServerErr, err)
+			err = errors.New("set command error", errors.ReadServerErr, err)
 			return err
 		}
 
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
+		if respBuf[0] == errors.ServerResponseError {
 			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("set command error", errors.WriteServerErr, err)
+			err = errors.New("set command error", errors.SetResponseError, err)
 			return err
 		}
 

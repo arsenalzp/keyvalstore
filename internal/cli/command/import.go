@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"gokeyval/internal/cli/errors"
 	"gokeyval/internal/cli/util"
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,7 +26,6 @@ var importCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var buf []byte = make([]byte, 3)
-		var respBuf [64]byte
 
 		con, err := createConnection()
 		if err != nil {
@@ -36,7 +34,7 @@ var importCmd = &cobra.Command{
 
 		defer con.Close()
 
-		writer := bufio.NewWriter(con) // create connection writer
+		writer := bufio.NewWriter(con) // connection writer to send the data to the server
 		copy(buf[0:3], []byte("imp"))
 
 		// read data from args
@@ -49,16 +47,10 @@ var importCmd = &cobra.Command{
 				return err
 			}
 
-			buf = append(buf[:], data...)
-			buf = append(buf[:], '\x00') // add delimiter to the end of the buffer
+			buf = append(buf, data...)
+			buf = append(buf, EOT) // add delimiter to the end of the buffer
 
-			// if a length of the buffer less than MESSAGE_SIZE - fill it up to 711 byte
-			if len(buf) < MESSAGE_SIZE {
-				diffBuf := make([]byte, MESSAGE_SIZE-len(buf))
-				buf = append(buf, diffBuf...)
-			}
-
-			_, err = writer.Write(buf[:]) // send data to the server
+			_, err = writer.Write(buf) // send data to the server
 			if err != nil {
 				err = errors.New("import command error", errors.WriteServerErr, err)
 				return err
@@ -77,21 +69,14 @@ var importCmd = &cobra.Command{
 				return err
 			}
 
-			buf = append(buf[:], data...)
-			buf = append(buf[:], '\x00') // add delimiter to the end of the buffer
+			buf = append(buf, data...)
+			buf = append(buf, EOT) // add delimiter to the end of the buffer
 
-			// if a length of the buffer less than 771 byte - fill it up to 711 byte
-			if len(buf) < MESSAGE_SIZE {
-				diffBuf := make([]byte, MESSAGE_SIZE-len(buf))
-				buf = append(buf, diffBuf...)
-			}
-
-			_, err = writer.Write(buf[:]) // send data to the server
+			_, err = writer.Write(buf) // send data to the server
 			if err != nil {
 				err = errors.New("import command error", errors.WriteServerErr, err)
 				return err
 			}
-
 		}
 
 		err = writer.Flush()
@@ -100,18 +85,16 @@ var importCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
+		reader := bufio.NewReader(con)
+		respBuf, err := reader.ReadBytes(EOT)
 		if err != nil {
 			err = errors.New("import command error", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
 			return err
 		}
 
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
+		if respBuf[0] == errors.ServerResponseError {
 			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("import command error", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
+			err = errors.New("import command error", errors.ImpResponseError, err)
 			return err
 		}
 

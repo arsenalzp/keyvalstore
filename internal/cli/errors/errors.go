@@ -10,12 +10,18 @@ import (
 )
 
 const (
-	InvalidAddrErr = "ECLI-0001"
-	NetworkErr     = "ECLI-0002"
-	ReadStdinErr   = "ECLI-0003"
-	ReadServerErr  = "ECLI-0004"
-	WriteServerErr = "ECLI-0005"
-	InvalidExport  = "ECLI-0006"
+	InvalidAddrErr      = "ECLI-0001"
+	NetworkErr          = "ECLI-0002"
+	ReadStdinErr        = "ECLI-0003"
+	ReadServerErr       = "ECLI-0004"
+	WriteServerErr      = "ECLI-0005"
+	InvalidExport       = "ECLI-0006"
+	GetResponseError    = "ECLI-0007"
+	SetResponseError    = "ECLI-0008"
+	DelResponseError    = "ECLI-0009"
+	ExpResponseError    = "ECLI-0010"
+	ImpResponseError    = "ECLI-0011"
+	ServerResponseError = 'N'
 )
 
 type errorCmd struct {

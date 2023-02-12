@@ -44,7 +44,7 @@ func Del(con net.Conn, dataChan chan<- struct{}, errChan chan<- error, key strin
 
 	if respBuf[0] == errors.ServerResponseError {
 		err = fmt.Errorf("%s", respBuf[1:]) // retrieve error value from the server response
-		err = errors.New("del operation error", errors.SetServerRespErr, err)
+		err = errors.New("del operation error", errors.DelServerRespErr, err)
 		errChan <- err
 		return
 	}

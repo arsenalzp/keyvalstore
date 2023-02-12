@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"gokeyval/internal/cli/errors"
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -26,7 +25,6 @@ var getCmd = &cobra.Command{
 	Short: "Get value of a key",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var respBuf [256]byte
 		var buf [MESSAGE_SIZE]byte
 
 		con, err := createConnection()
@@ -41,7 +39,8 @@ var getCmd = &cobra.Command{
 		writer := bufio.NewWriter(con)
 
 		copy(buf[0:3], []byte("get"))
-		copy(buf[3:], []byte(key))
+		copy(buf[3:259], []byte(key))
+		buf[771] = EOT
 
 		_, err = writer.Write(buf[:]) // write command, key and val
 		if err != nil {
@@ -55,22 +54,24 @@ var getCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
+		reader := bufio.NewReader(con)
+		respBuf, err := reader.ReadBytes(EOT) // reading the server response
 		if err != nil {
-			err = errors.New("get command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
+			err = errors.New("get command failed", errors.ReadServerErr, err)
 			return err
 		}
 
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
+		if respBuf[0] == errors.ServerResponseError {
 			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("get command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
+			err = errors.New("get command failed", errors.GetResponseError, err)
 			return err
 		}
 
-		fmt.Fprintf(os.Stdout, "%s\n", bytes.TrimRight(respBuf[1:], "\x00"))
+		// Trim response buffer: delete NULL and EOT bytes
+		respBuf = bytes.TrimRight(respBuf[1:], "\x00")
+		respBuf = bytes.TrimRight(respBuf, string(EOT))
+
+		fmt.Fprintf(os.Stdout, "%s\n", respBuf)
 
 		return nil
 	},

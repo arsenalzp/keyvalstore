@@ -47,7 +47,7 @@ func Set(con net.Conn, dataChan chan<- struct{}, errChan chan<- error, key strin
 	reader := bufio.NewReader(con)
 	respBuf, err := reader.ReadBytes(EOT)
 	if err != nil {
-		err = errors.New("set operation error", errors.WriteServerErr, err)
+		err = errors.New("set operation error", errors.ReadServerErr, err)
 		errChan <- err
 		return
 	}

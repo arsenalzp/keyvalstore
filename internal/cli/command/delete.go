@@ -6,8 +6,6 @@ import (
 	"bufio"
 	"fmt"
 	"gokeyval/internal/cli/errors"
-	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +23,6 @@ var delCmd = &cobra.Command{
 	Short: "Delete a key",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var respBuf [64]byte
 		var buf [MESSAGE_SIZE]byte
 
 		con, err := createConnection()
@@ -41,6 +38,7 @@ var delCmd = &cobra.Command{
 
 		copy(buf[0:3], []byte("del"))
 		copy(buf[3:], []byte(key))
+		buf[771] = EOT
 
 		_, err = writer.Write(buf[:])
 		if err != nil {
@@ -54,18 +52,16 @@ var delCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = io.ReadFull(con, respBuf[:]) // waiting for server response
+		reader := bufio.NewReader(con)
+		respBuf, err := reader.ReadBytes(EOT) // waiting for server response
 		if err != nil {
-			err = errors.New("del command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
+			err = errors.New("del command failed", errors.ReadServerErr, err)
 			return err
 		}
 
-		respCode := respBuf[:1]
-		if respCode[0] != 'O' {
+		if respBuf[0] == errors.ServerResponseError {
 			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("del command failed", errors.WriteServerErr, err)
-			fmt.Fprintf(os.Stderr, "%s\n", err) // print server response
+			err = errors.New("del command failed", errors.DelResponseError, err)
 			return err
 		}
 

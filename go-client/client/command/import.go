@@ -45,7 +45,7 @@ func Import(con net.Conn, dataChan chan<- struct{}, errChan chan<- error, dataBu
 
 	if respBuf[0] == errors.ServerResponseError {
 		err = fmt.Errorf("%s", respBuf[1:])
-		err = errors.New("import operation error", errors.WriteServerErr, err)
+		err = errors.New("import operation error", errors.ImpServerRespErr, err)
 		errChan <- err
 		return
 	}
