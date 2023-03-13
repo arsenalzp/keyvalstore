@@ -24,8 +24,8 @@ SERVER_CERT - path to a server's certificate
 SERVER_KEY - path to a server private key
 ROOTCA_CERT - path to a root CA certificate
 SERVICE_STORAGE - set an underlying storage (hash table or sqlite)
-SERVICE_NIC - set NIC for binding
 SERVICE_PORT - set TCP port to listen on
+SERVICE_NIC - set NIC for binding
 `
 
 func init() {

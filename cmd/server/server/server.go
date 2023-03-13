@@ -99,7 +99,7 @@ func (s *Server) initNetwork() error {
 		s.Address = s.IP.String() + ":" + s.Port
 	} else {
 		s.Port = "6842"
-		s.Address = ":" + s.Port
+		s.Address = s.IP.String() + ":" + s.Port
 	}
 
 	return nil

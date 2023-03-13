@@ -65,6 +65,7 @@ To run the server need to define CA certificate, the server certificate and key,
     SERVICE_STORAGE="hash" \
     ./server
 ```
+
 for SQLite sotrage, set SERVICE_STORAGE to "sqlite :
 ```
   % SERVICE_STORAGE="sqlite" \
