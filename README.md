@@ -11,10 +11,10 @@ PKI is used for end-user authentication with; Certificate Revocation List capabi
 ### Message format:
 Message size: 771 byte
 
-| Command | Key | Value | 
-|-----------|-----------|-----------|
-| Bytes | Bytes | Bytes |
-| 0-2 | 3-258 | 259-771 |
+| Command   | Key       | Value     | EOT
+|-----------|-----------|-----------|---------|
+| Bytes     | Bytes     | Bytes     | Bytes
+| 0-2       | 3-258     | 259-770   | 771
 
 ### A set of commands:
 + SET - set a value to a key
