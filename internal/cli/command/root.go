@@ -47,18 +47,19 @@ var rootCmd = &cobra.Command{
 }
 
 func createConnection() (*tls.Conn, error) {
-	var ip string
+	//var ip string
 	var port string
 
 	addrArg := strings.Trim(serverAddress, "\n\t") // argument from stdin
 
-	ip, port, err := net.SplitHostPort(addrArg)
+	addr, port, err := net.SplitHostPort(addrArg)
 	if err != nil {
 		err = errors.New("connection error", errors.InvalidAddrErr, err)
 		return nil, err
 	}
 
-	if ok := net.ParseIP(ip); ok == nil {
+	ip, err := net.ResolveIPAddr("ip", addr)
+	if err != nil {
 		err = errors.New("connection error", errors.InvalidAddrErr, err)
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func createConnection() (*tls.Conn, error) {
 		return nil, err
 	}
 
-	conn, err := net.Dial("tcp", ip+":"+port)
+	conn, err := net.Dial("tcp", ip.IP.String()+":"+port)
 	if err != nil {
 		err = errors.New("connection error", errors.NetworkErr, err)
 		return nil, err
