@@ -4,6 +4,14 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
+
+	"github.com/arsenalzp/keyvalstore/go-client/internal/errors"
+)
+
+const (
+	KEY_LENGTH   = 256
+	VALUE_LENGTH = 511
 )
 
 // simple structure is used to unmarshal incoming JSON data into it
@@ -24,4 +32,20 @@ func ValidateData(data []byte) error {
 	}
 
 	return nil
+}
+
+// validate input of the key and the value parameters
+func ValidateInput(key, value string) error {
+	switch {
+	case len(key) == 0:
+		return errors.New("input validation error: key shoudn't be empty", errors.InputValidationErr, nil)
+	case len(key) > KEY_LENGTH:
+		message := fmt.Sprintf("input validation error: key size is greater than %d bytes, current size: %d", KEY_LENGTH, len(key))
+		return errors.New(message, errors.InputValidationErr, nil)
+	case len(value) > VALUE_LENGTH:
+		message := fmt.Sprintf("input validation error: value size is greater than %d bytes, current size: %d", VALUE_LENGTH, len(key))
+		return errors.New(message, errors.InputValidationErr, nil)
+	default:
+		return nil
+	}
 }

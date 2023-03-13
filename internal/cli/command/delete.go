@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"gokeyval/internal/cli/errors"
+	"gokeyval/internal/cli/util"
 
 	"github.com/spf13/cobra"
 )
@@ -32,12 +33,16 @@ var delCmd = &cobra.Command{
 
 		defer con.Close()
 
-		key := args[0]
+		// validate the key data parameter
+		err = util.ValidateInput(args[0], "")
+		if err != nil {
+			return err
+		}
 
 		writer := bufio.NewWriter(con)
 
-		copy(buf[0:3], []byte("del"))
-		copy(buf[3:], []byte(key))
+		copy(buf[0:3], []byte("del"))  // copy the command data
+		copy(buf[3:], []byte(args[0])) // copy the key data
 		buf[771] = EOT
 
 		_, err = writer.Write(buf[:])

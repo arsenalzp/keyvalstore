@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"gokeyval/internal/cli/errors"
+	"gokeyval/internal/cli/util"
 	"os"
 	"strings"
 
@@ -26,7 +27,7 @@ var setCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var substr []string
-		var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 512B
+		var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 511B
 
 		con, err := createConnection()
 		if err != nil {
@@ -53,14 +54,17 @@ var setCmd = &cobra.Command{
 			return fmt.Errorf("key and val shouldn't be empty")
 		}
 
-		key := substr[0] // key
-		val := substr[1] // value
+		// validate the key and the value data parameters
+		err = util.ValidateInput(args[0], substr[1])
+		if err != nil {
+			return err
+		}
 
 		writer := bufio.NewWriter(con)
 
-		copy(buf[0:3], []byte("set"))
-		copy(buf[3:259], []byte(key))
-		copy(buf[259:], []byte(val))
+		copy(buf[0:3], []byte("set"))       // copy the command data
+		copy(buf[3:259], []byte(substr[0])) // copy the key data
+		copy(buf[259:], []byte(substr[1]))  // copy the value data
 		buf[771] = EOT
 
 		_, err = writer.Write(buf[:]) // write command, key and val

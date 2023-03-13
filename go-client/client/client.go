@@ -70,6 +70,12 @@ func (c *Client) Close() error {
 
 // Get a value for a given key. Get returns []byte or error in case of failure
 func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
+	// validate the key data parameter
+	err := util.ValidateInput(key, "")
+	if err != nil {
+		return nil, err
+	}
+
 	dataChan := make(chan []byte, 1)
 	errChan := make(chan error, 1)
 
@@ -92,6 +98,12 @@ func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
 
 // Save key=value pair on a server. Set return error in case of failure
 func (c *Client) Set(ctx context.Context, key, value string) error {
+	// validate the key and the value data parameters
+	err := util.ValidateInput(key, value)
+	if err != nil {
+		return err
+	}
+
 	dataChan := make(chan struct{}, 1)
 	errChan := make(chan error, 1)
 
@@ -113,6 +125,12 @@ func (c *Client) Set(ctx context.Context, key, value string) error {
 
 // Delete key=value pair on a server. Del returns error in case of failure
 func (c *Client) Del(ctx context.Context, key string) error {
+	// validate the key and the value data parameters
+	err := util.ValidateInput(key, "")
+	if err != nil {
+		return err
+	}
+
 	dataChan := make(chan struct{}, 1)
 	errChan := make(chan error, 1)
 

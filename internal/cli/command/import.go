@@ -35,7 +35,7 @@ var importCmd = &cobra.Command{
 		defer con.Close()
 
 		writer := bufio.NewWriter(con) // connection writer to send the data to the server
-		copy(buf[0:3], []byte("imp"))
+		copy(buf[0:3], []byte("imp"))  // copy the command data
 
 		// read data from args
 		// else read data from stdin
@@ -47,8 +47,8 @@ var importCmd = &cobra.Command{
 				return err
 			}
 
-			buf = append(buf, data...)
-			buf = append(buf, EOT) // add delimiter to the end of the buffer
+			buf = append(buf, data...) // append the importing data to the request buffer
+			buf = append(buf, EOT)     // add delimiter to the end of the buffer
 
 			_, err = writer.Write(buf) // send data to the server
 			if err != nil {
@@ -69,8 +69,8 @@ var importCmd = &cobra.Command{
 				return err
 			}
 
-			buf = append(buf, data...)
-			buf = append(buf, EOT) // add delimiter to the end of the buffer
+			buf = append(buf, data...) // append the importing data to the request buffer
+			buf = append(buf, EOT)     // add delimiter to the end of the buffer
 
 			_, err = writer.Write(buf) // send data to the server
 			if err != nil {

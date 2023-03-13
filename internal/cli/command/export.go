@@ -37,8 +37,8 @@ var exportCmd = &cobra.Command{
 
 		writer := bufio.NewWriter(con)
 
-		copy(buf[0:3], []byte("exp"))
-		buf[3] = EOT // add EOT to signal the end of transmission
+		copy(buf[0:3], []byte("exp")) // copy the command data
+		buf[3] = EOT                  // add EOT to signal the end of transmission
 
 		_, err = writer.Write(buf)
 		if err != nil {

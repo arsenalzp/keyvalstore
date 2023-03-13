@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"gokeyval/internal/cli/errors"
+	"gokeyval/internal/cli/util"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -34,12 +35,16 @@ var getCmd = &cobra.Command{
 
 		defer con.Close()
 
-		key := args[0]
+		// validate the key data parameter
+		err = util.ValidateInput(args[0], "")
+		if err != nil {
+			return err
+		}
 
 		writer := bufio.NewWriter(con)
 
-		copy(buf[0:3], []byte("get"))
-		copy(buf[3:259], []byte(key))
+		copy(buf[0:3], []byte("get"))     // copy the command data
+		copy(buf[3:259], []byte(args[0])) // copy the key data
 		buf[771] = EOT
 
 		_, err = writer.Write(buf[:]) // write command, key and val

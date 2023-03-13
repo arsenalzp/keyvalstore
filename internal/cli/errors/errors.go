@@ -22,6 +22,7 @@ const (
 	ExpResponseError    = "ECLI-0010"
 	ImpResponseError    = "ECLI-0011"
 	ServerResponseError = 'N'
+	InputValidationErr  = "ECLI-0012"
 )
 
 type errorCmd struct {
@@ -31,6 +32,14 @@ type errorCmd struct {
 }
 
 func (e errorCmd) Error() string {
+	// if error argument is nil - don't print it out
+	if e.Err == nil {
+		return fmt.Sprintf(
+			"%s, code: %s",
+			e.Msg, e.Code,
+		)
+	}
+
 	return fmt.Sprintf(
 		"%s, code: %s, %s",
 		e.Msg, e.Code, e.Err,
