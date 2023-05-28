@@ -60,6 +60,7 @@ Loop:
 		reader = bufio.NewReader(con)
 		writer = bufio.NewWriter(con)
 
+		// read a data from the connection, until EOT reached
 		buf, err := reader.ReadBytes(EOT)
 		if err == io.EOF { // probably, connection was closed by remote peer
 			return
@@ -72,7 +73,7 @@ Loop:
 		}
 
 		// get command from the buffer
-		cmd := getCmd(buf[0:3])
+		cmd := getCmd(buf)
 		if cmd == "" {
 			continue Loop
 		}
@@ -80,74 +81,51 @@ Loop:
 		// select the command
 		switch cmd {
 		case "set":
-			respBuf := make([]byte, 64) // create outcomming buffer
-			key := buf[3:259]           // get key value from the buffer
-			val := buf[259:512]         // get value from the buffer
+			respBuf := make([]byte, 63) // create outcomming buffer
+			key := readKey(buf)         // get key value from the buffer
+			val := readValue(buf)       // get value from the buffer
 
 			go ds.set(ctx, key, val, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
+				respBuf = writeStatus(respBuf, NOK)
+
 				err := errors.New("set operation error", errors.SetOpTimeout, ctx.Err())
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("set operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
 					return
 				}
 
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("set operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
-				log.Println(err)
+				log.Printf("%+v", err)
 
 			case err := <-errCh:
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("set operation error", errors.SettOpErr, err)
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
+				if err != nil {
+					err = errors.New("set operation error", errors.WriteClientErr, err)
+					log.Printf("%+v", err)
+					return
+				}
+
 				log.Printf("%+v", err)
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
-				if err != nil {
-					err = errors.New("set operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("set operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
 
 			case <-dataCh:
-				respBuf[0] = OK // the first byte indicates type of the message
-				respBuf = append(respBuf, EOT)
-				_, err := writer.Write(respBuf[:])
+				respBuf = writeStatus(respBuf, OK)
+				respBuf = writeEOT(respBuf)
+
+				err := sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("set operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("set operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
@@ -155,150 +133,105 @@ Loop:
 			}
 
 		case "get":
-			respBuf := make([]byte, 513)
+			respBuf := make([]byte, 512)
 
 			// get key value from the buffer
-			key := buf[3:259]
+			key := readKey(buf)
 
 			go ds.get(ctx, key, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
+				respBuf = writeStatus(respBuf, NOK)
+
 				err := errors.New("get operation error", errors.GetOpTimeout, ctx.Err())
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[512] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("get operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("get operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
 				log.Printf("%+v", err)
 
 			case err := <-errCh:
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("get operation error", errors.GetOpErr, err)
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[512] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("get operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("get operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
 				log.Printf("%+v", err)
 
 			case data := <-dataCh:
-				respBuf[0] = OK // the first byte indicates type of the message
-				copy(respBuf[1:], data)
-				respBuf = append(respBuf, EOT)
+				respBuf = writeStatus(respBuf, OK)
+				respBuf = writeValue(respBuf, data)
+				respBuf = writeEOT(respBuf)
+
 				mu.Lock()
-				_, err := writer.Write(respBuf)
-				if err != nil {
-					err = errors.New("get operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
+				err := sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("get operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
 					return
 				}
 				mu.Unlock()
+
 				continue Loop
 			}
 
 		case "del":
-			respBuf := make([]byte, 64) // create outcomming buffer
+			respBuf := make([]byte, 63) // create outcomming buffer
 
 			// get key value from the buffer
-			key := buf[3:259]
+			key := readKey(buf)
 
 			go ds.del(ctx, key, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
+				respBuf = writeStatus(respBuf, NOK)
+
 				err := errors.New("del operation error", errors.DelOpTimeout, ctx.Err())
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("del operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("del operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
 				log.Printf("%+v", err)
 
 			case err := <-errCh:
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("del operation error", errors.DelOpErr, err)
-				respBuf[0] = NOK
-				copy(respBuf[1:], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf[:]) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("del operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("del operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
 				log.Printf("%+v", err)
 
 			case <-dataCh:
-				respBuf[0] = OK // the first byte indicates type of the message
-				respBuf[63] = EOT
-				_, err := writer.Write(respBuf)
-				if err != nil {
-					err = errors.New("del operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
+				respBuf = writeStatus(respBuf, OK)
+				respBuf = writeEOT(respBuf)
 
-					return
-				}
-
-				err = writer.Flush()
+				err := sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("del operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
@@ -314,73 +247,53 @@ Loop:
 
 			select {
 			case <-ctx.Done():
+				respBuf = writeStatus(respBuf, NOK)
+
 				err := errors.New("export operation error", errors.ExpOpTimeout, ctx.Err())
-				respBuf[0] = NOK
-				copy(respBuf[1:63], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("export operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
 					return
 				}
 
-				err = writer.Flush()
-				if err != nil {
-					err := errors.New("export operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
 				log.Printf("%+v", err)
 
 			case err := <-errCh:
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("export operation error", errors.ExpOpErr, err)
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
+				if err != nil {
+					err = errors.New("export operation error", errors.WriteClientErr, err)
+					log.Printf("%+v", err)
+					return
+				}
+
 				log.Printf("%+v", err)
-				respBuf[0] = NOK
-				copy(respBuf[1:63], []byte(fmt.Sprint(err))) // return error to client
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf) // return error to a client
-				if err != nil {
-					err = errors.New("export operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("export operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
 
 			case data := <-dataCh:
-				respBuf[0] = OK // the first byte indicates type of the message
-				respBuf = append(respBuf, data...)
-				respBuf = append(respBuf, EOT)
+				respBuf = writeStatus(respBuf, OK)
+
+				respBuf = writeExport(respBuf, data)
+				respBuf = writeEOT(respBuf)
+
 				mu.Lock()
-				_, err := writer.Write(respBuf)
+				err := sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("export operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
 					return
 				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("export operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
 				mu.Unlock()
+
 				continue Loop
 			}
+
 		case "imp":
 			respBuf := make([]byte, 64)
 
@@ -388,66 +301,43 @@ Loop:
 
 			select {
 			case <-ctx.Done():
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("import operation error", errors.ImpOpTimeout, ctx.Err())
-				log.Printf("%+v", err)
-				respBuf[0] = NOK
-				copy(respBuf[1:63], []byte(fmt.Sprint(err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf) // return error to a client
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("export operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
 					return
 				}
 
-				err = writer.Flush()
-				if err != nil {
-					err := errors.New("import operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
+				log.Printf("%+v", err)
 
 			case err := <-errCh:
+				respBuf = writeStatus(respBuf, NOK)
+
 				err = errors.New("import operation error", errors.ImpOpErr, err)
+				respBuf = writeError(respBuf, err)
+
+				err = sendData(respBuf, *writer)
+				if err != nil {
+					err = errors.New("import operation error", errors.WriteClientErr, err)
+					log.Printf("%+v", err)
+					return
+				}
+
 				log.Printf("%+v", err)
-				respBuf[0] = NOK
-				copy(respBuf[1:63], []byte(fmt.Sprintf("%s", err)))
-				respBuf[63] = EOT
-				_, err = writer.Write(respBuf) // return error to a client
-				if err != nil {
-					err = errors.New("import operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("import operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
-					return
-				}
 
 			case <-dataCh:
-				respBuf[0] = OK // the first byte indicates type of the message
-				respBuf = append(respBuf, EOT)
-				respBuf[63] = EOT
-				_, err := writer.Write(respBuf)
+				respBuf = writeStatus(respBuf, OK)
+				respBuf = writeEOT(respBuf)
+
+				err := sendData(respBuf, *writer)
 				if err != nil {
 					err = errors.New("import operation error", errors.WriteClientErr, err)
 					log.Printf("%+v", err)
-
-					return
-				}
-
-				err = writer.Flush()
-				if err != nil {
-					err = errors.New("import operation error", errors.WriteClientErr, err)
-					log.Printf("%+v", err)
-
 					return
 				}
 
@@ -458,7 +348,7 @@ Loop:
 }
 
 func getCmd(buf []byte) Cmd {
-	cmd := string(buf)
+	cmd := string(buf[0:3])
 
 	switch cmd {
 	case "set":
@@ -474,4 +364,50 @@ func getCmd(buf []byte) Cmd {
 	default:
 		return ""
 	}
+}
+
+func readKey(buf []byte) []byte {
+	return buf[3:259]
+}
+
+func readValue(buf []byte) []byte {
+	return buf[259:512]
+}
+
+func writeValue(respBuf, data []byte) []byte {
+	copy(respBuf[1:], data)
+	return respBuf
+}
+
+func writeExport(respBuf, export []byte) []byte {
+	return append(respBuf, export...)
+
+}
+
+func writeError(respBuf []byte, err error) []byte {
+	copy(respBuf[1:], []byte(fmt.Sprint(err)))
+	respBuf[63] = EOT
+	return respBuf[0:64]
+}
+
+func writeStatus(respBuf []byte, status rune) []byte {
+	respBuf[0] = byte(status) // the first byte indicates type of the message
+	return respBuf
+}
+
+func writeEOT(respBuf []byte) []byte {
+	return append(respBuf, EOT)
+}
+
+func sendData(respBuf []byte, writer bufio.Writer) error {
+	_, err := writer.Write(respBuf[:])
+	if err != nil {
+		return err
+	}
+
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+
+	return nil
 }
