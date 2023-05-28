@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func createConnection() (*tls.Conn, error) {
+func CreateConnection() (*tls.Conn, error) {
 	//var ip string
 	var port string
 

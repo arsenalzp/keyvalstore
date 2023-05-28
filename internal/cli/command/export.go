@@ -5,9 +5,11 @@ package command
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"gokeyval/internal/cli/errors"
 	"gokeyval/internal/cli/util"
+	"net"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -26,57 +28,68 @@ var exportCmd = &cobra.Command{
 	Short: "Retrieve key=value pairs and print them into stdout ",
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var buf []byte = make([]byte, 4)
-
-		con, err := createConnection()
-		if err != nil {
+		if err := Export(nil, cmd, args); err != nil {
 			return err
 		}
-
-		defer con.Close()
-
-		writer := bufio.NewWriter(con)
-
-		copy(buf[0:3], []byte("exp")) // copy the command data
-		buf[3] = EOT                  // add EOT to signal the end of transmission
-
-		_, err = writer.Write(buf)
-		if err != nil {
-			err = errors.New("export command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		err = writer.Flush()
-		if err != nil {
-			err = errors.New("export command error", errors.WriteServerErr, err)
-			return err
-		}
-
-		reader := bufio.NewReader(con)
-		respBuf, err := reader.ReadBytes(EOT)
-		if err != nil {
-			err = errors.New("export command error", errors.ReadServerErr, err)
-			return err
-		}
-
-		if respBuf[0] == errors.ServerResponseError {
-			err = fmt.Errorf("%s", respBuf[1:])
-			err = errors.New("export command error", errors.ExpResponseError, err)
-			return err
-		}
-
-		// Trim response buffer: delete NULL and EOT bytes
-		respBuf = bytes.TrimRight(respBuf[1:], "\x00")
-		respBuf = bytes.TrimRight(respBuf, string(EOT))
-
-		err = util.ValidateData(respBuf)
-		if err != nil {
-			err = errors.New("export command error, validation of output failed", errors.InvalidExport, err)
-			return err
-		}
-
-		fmt.Fprintf(os.Stdout, "%s\n", respBuf)
-
 		return nil
 	},
+}
+
+func Export(externalConn net.Conn, cmd *cobra.Command, args []string) error {
+	var buf []byte = make([]byte, 4)
+	var con *tls.Conn
+
+	if externalConn == nil {
+		newCon, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+		con = newCon
+	}
+
+	defer con.Close()
+
+	writer := bufio.NewWriter(con)
+
+	copy(buf[0:3], []byte("exp")) // copy the command data
+	buf[3] = EOT                  // add EOT to signal the end of transmission
+
+	_, err := writer.Write(buf)
+	if err != nil {
+		err = errors.New("export command error", errors.WriteServerErr, err)
+		return err
+	}
+
+	err = writer.Flush()
+	if err != nil {
+		err = errors.New("export command error", errors.WriteServerErr, err)
+		return err
+	}
+
+	reader := bufio.NewReader(con)
+	respBuf, err := reader.ReadBytes(EOT)
+	if err != nil {
+		err = errors.New("export command error", errors.ReadServerErr, err)
+		return err
+	}
+
+	if respBuf[0] == errors.ServerResponseError {
+		err = fmt.Errorf("%s", respBuf[1:])
+		err = errors.New("export command error", errors.ExpResponseError, err)
+		return err
+	}
+
+	// Trim response buffer: delete NULL and EOT bytes
+	respBuf = bytes.TrimRight(respBuf[1:], "\x00")
+	respBuf = bytes.TrimRight(respBuf, string(EOT))
+
+	err = util.ValidateData(respBuf)
+	if err != nil {
+		err = errors.New("export command error, validation of output failed", errors.InvalidExport, err)
+		return err
+	}
+
+	fmt.Fprintf(os.Stdout, "%s\n", respBuf)
+
+	return nil
 }
