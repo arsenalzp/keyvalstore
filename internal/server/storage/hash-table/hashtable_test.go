@@ -186,6 +186,19 @@ func TestExport(t *testing.T) {
 	}
 }
 
+func TestNewHt(t *testing.T) {
+	hashTbale, err := NewHT()
+	if err != nil {
+		t.Errorf("error creating hash table storage: %s\n", err)
+		return
+	}
+
+	if hashTbale == nil {
+		t.Errorf("error creating hash table storage: hash table storage wasn't initialized")
+		return
+	}
+}
+
 func populateTestSet(count int) map[string]string {
 	var testSet map[string]string = make(map[string]string)
 
