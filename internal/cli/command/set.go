@@ -27,29 +27,23 @@ var setCmd = &cobra.Command{
 	Short: "Set key=value",
 	Args:  cobra.MinimumNArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := Set(nil, cmd, args); err != nil {
+		conn, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+
+		if err := Set(conn, cmd, args); err != nil {
 			return err
 		}
 		return nil
 	},
 }
 
-func Set(externalConn net.Conn, cmd *cobra.Command, args []string) error {
+func Set(conn net.Conn, cmd *cobra.Command, args []string) error {
 	var substr []string
 	var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 511B
-	var con net.Conn
 
-	if externalConn == nil {
-		newCon, err := CreateConnection()
-		if err != nil {
-			return err
-		}
-		con = newCon
-	} else {
-		con = externalConn
-	}
-
-	defer con.Close()
+	defer conn.Close()
 
 	// read data from arguments
 	// else read data from stdin
@@ -75,7 +69,7 @@ func Set(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	writer := bufio.NewWriter(con)
+	writer := bufio.NewWriter(conn)
 
 	copy(buf[0:3], []byte("set"))       // copy the command data
 	copy(buf[3:259], []byte(substr[0])) // copy the key data
@@ -94,7 +88,7 @@ func Set(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	reader := bufio.NewReader(con)
+	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT) // waiting for server response
 	if err != nil {
 		err = errors.New("set command error", errors.ReadServerErr, err)

@@ -27,7 +27,12 @@ var getCmd = &cobra.Command{
 	Short: "Get value of a key",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := Get(nil, cmd, args)
+		conn, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+
+		_, err = Get(conn, cmd, args)
 		if err != nil {
 			return err
 		}
@@ -35,21 +40,10 @@ var getCmd = &cobra.Command{
 	},
 }
 
-func Get(externalConn net.Conn, cmd *cobra.Command, args []string) ([]byte, error) {
+func Get(conn net.Conn, cmd *cobra.Command, args []string) ([]byte, error) {
 	var buf [MESSAGE_SIZE]byte
-	var con net.Conn
 
-	if externalConn == nil {
-		newCon, err := CreateConnection()
-		if err != nil {
-			return nil, err
-		}
-		con = newCon
-	} else {
-		con = externalConn
-	}
-
-	defer con.Close()
+	defer conn.Close()
 
 	// validate the key data parameter
 	err := util.ValidateInput(args[0], "")
@@ -57,7 +51,7 @@ func Get(externalConn net.Conn, cmd *cobra.Command, args []string) ([]byte, erro
 		return nil, err
 	}
 
-	writer := bufio.NewWriter(con)
+	writer := bufio.NewWriter(conn)
 
 	copy(buf[0:3], []byte("get"))     // copy the command data
 	copy(buf[3:259], []byte(args[0])) // copy the key data
@@ -75,7 +69,7 @@ func Get(externalConn net.Conn, cmd *cobra.Command, args []string) ([]byte, erro
 		return nil, err
 	}
 
-	reader := bufio.NewReader(con)
+	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT) // reading the server response
 	if err != nil {
 		err = errors.New("get command failed", errors.ReadServerErr, err)

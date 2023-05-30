@@ -5,7 +5,6 @@ package command
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"gokeyval/internal/cli/errors"
 	"gokeyval/internal/cli/util"
@@ -28,28 +27,24 @@ var exportCmd = &cobra.Command{
 	Short: "Retrieve key=value pairs and print them into stdout ",
 	Args:  cobra.MaximumNArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := Export(nil, cmd, args); err != nil {
+		conn, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+
+		if err := Export(conn, cmd, args); err != nil {
 			return err
 		}
 		return nil
 	},
 }
 
-func Export(externalConn net.Conn, cmd *cobra.Command, args []string) error {
+func Export(conn net.Conn, cmd *cobra.Command, args []string) error {
 	var buf []byte = make([]byte, 4)
-	var con *tls.Conn
 
-	if externalConn == nil {
-		newCon, err := CreateConnection()
-		if err != nil {
-			return err
-		}
-		con = newCon
-	}
+	defer conn.Close()
 
-	defer con.Close()
-
-	writer := bufio.NewWriter(con)
+	writer := bufio.NewWriter(conn)
 
 	copy(buf[0:3], []byte("exp")) // copy the command data
 	buf[3] = EOT                  // add EOT to signal the end of transmission
@@ -66,7 +61,7 @@ func Export(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	reader := bufio.NewReader(con)
+	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT)
 	if err != nil {
 		err = errors.New("export command error", errors.ReadServerErr, err)

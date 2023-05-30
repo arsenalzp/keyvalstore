@@ -4,7 +4,6 @@ package command
 
 import (
 	"bufio"
-	"crypto/tls"
 	"fmt"
 	"gokeyval/internal/cli/errors"
 	"gokeyval/internal/cli/util"
@@ -27,29 +26,25 @@ var importCmd = &cobra.Command{
 	Short: "Import stringified key=value pairs from stdin ",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := Import(nil, cmd, args); err != nil {
+		conn, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+
+		if err := Import(conn, cmd, args); err != nil {
 			return err
 		}
 		return nil
 	},
 }
 
-func Import(externalConn net.Conn, cmd *cobra.Command, args []string) error {
+func Import(conn net.Conn, cmd *cobra.Command, args []string) error {
 	var buf []byte = make([]byte, 3)
-	var con *tls.Conn
 
-	if externalConn == nil {
-		newCon, err := CreateConnection()
-		if err != nil {
-			return err
-		}
-		con = newCon
-	}
+	defer conn.Close()
 
-	defer con.Close()
-
-	writer := bufio.NewWriter(con) // connection writer to send the data to the server
-	copy(buf[0:3], []byte("imp"))  // copy the command data
+	writer := bufio.NewWriter(conn) // connection writer to send the data to the server
+	copy(buf[0:3], []byte("imp"))   // copy the command data
 
 	// read data from args
 	// else read data from stdin
@@ -99,7 +94,7 @@ func Import(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	reader := bufio.NewReader(con)
+	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT)
 	if err != nil {
 		err = errors.New("import command error", errors.WriteServerErr, err)

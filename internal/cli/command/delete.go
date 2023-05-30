@@ -25,28 +25,22 @@ var delCmd = &cobra.Command{
 	Short: "Delete a key",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := Del(nil, cmd, args); err != nil {
+		conn, err := CreateConnection()
+		if err != nil {
+			return err
+		}
+
+		if err := Del(conn, cmd, args); err != nil {
 			return err
 		}
 		return nil
 	},
 }
 
-func Del(externalConn net.Conn, cmd *cobra.Command, args []string) error {
+func Del(conn net.Conn, cmd *cobra.Command, args []string) error {
 	var buf [MESSAGE_SIZE]byte
-	var con net.Conn
 
-	if externalConn == nil {
-		newCon, err := CreateConnection()
-		if err != nil {
-			return err
-		}
-		con = newCon
-	} else {
-		con = externalConn
-	}
-
-	defer con.Close()
+	defer conn.Close()
 
 	// validate the key data parameter
 	err := util.ValidateInput(args[0], "")
@@ -54,7 +48,7 @@ func Del(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	writer := bufio.NewWriter(con)
+	writer := bufio.NewWriter(conn)
 
 	copy(buf[0:3], []byte("del"))  // copy the command data
 	copy(buf[3:], []byte(args[0])) // copy the key data
@@ -72,7 +66,7 @@ func Del(externalConn net.Conn, cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	reader := bufio.NewReader(con)
+	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT) // waiting for server response
 	if err != nil {
 		err = errors.New("del command failed", errors.ReadServerErr, err)

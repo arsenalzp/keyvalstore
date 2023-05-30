@@ -46,6 +46,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
+// Create connection with remote server
 func CreateConnection() (*tls.Conn, error) {
 	//var ip string
 	var port string
