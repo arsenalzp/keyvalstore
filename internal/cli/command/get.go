@@ -32,10 +32,12 @@ var getCmd = &cobra.Command{
 			return err
 		}
 
-		_, err = Get(conn, cmd, args)
+		data, err := Get(conn, cmd, args)
 		if err != nil {
 			return err
 		}
+
+		fmt.Fprintf(os.Stdout, "%s\n", data)
 		return nil
 	},
 }
@@ -85,7 +87,6 @@ func Get(conn net.Conn, cmd *cobra.Command, args []string) ([]byte, error) {
 	// Trim response buffer: delete NULL and EOT bytes
 	respBuf = bytes.TrimRight(respBuf, string(EOT))
 	respBuf = bytes.TrimRight(respBuf[1:], "\x00")
-	fmt.Fprintf(os.Stdout, "%s\n", respBuf)
 
 	return respBuf, err
 }

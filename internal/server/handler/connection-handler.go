@@ -5,6 +5,7 @@ package handler
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"gokeyval/internal/server/errors"
@@ -190,7 +191,6 @@ Loop:
 
 		case "del":
 			respBuf := make([]byte, 63) // create outcomming buffer
-
 			// get key value from the buffer
 			key := readKey(buf)
 
@@ -297,7 +297,9 @@ Loop:
 		case "imp":
 			respBuf := make([]byte, 64)
 
-			go ds.imp(ctx, buf[3:], dataCh, errCh)
+			importData := readImport(buf[3:])
+
+			go ds.imp(ctx, importData, dataCh, errCh)
 
 			select {
 			case <-ctx.Done():
@@ -374,6 +376,10 @@ func readValue(buf []byte) []byte {
 	return buf[259:512]
 }
 
+func readImport(buf []byte) []byte {
+	return trimEOT(buf)
+}
+
 func writeValue(respBuf, data []byte) []byte {
 	copy(respBuf[1:], data)
 	return respBuf
@@ -410,4 +416,8 @@ func sendData(respBuf []byte, writer bufio.Writer) error {
 	}
 
 	return nil
+}
+
+func trimEOT(trimData []byte) []byte {
+	return bytes.Trim(bytes.Trim(trimData, "\x00"), string(EOT))
 }

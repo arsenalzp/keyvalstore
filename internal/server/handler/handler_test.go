@@ -23,13 +23,41 @@ func initStorage() *Storage {
 
 	stg.storage = make(map[string]string)
 
-	// for i := 0; i < 100; i++ {
-	// 	key := "key" + fmt.Sprint(i)
-	// 	value := "valu" + fmt.Sprint(i)
-
-	// 	stg.storage[key] = value
-	// }
 	return stg
+}
+
+func TestExportHandler(t *testing.T) {
+	const QUANTITY int = 1000
+	var counter int = 0
+
+	ctx := context.Background()
+	stg := initStorage()
+
+	for i := 0; i < 1000; i++ {
+		stg.storage["key"+fmt.Sprint(i)] = "val" + fmt.Sprint(i)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	go HandleCon(ctx, serverConn, stg)
+
+	_, err := cli.Export(clientConn, nil)
+	if err != nil {
+		t.Errorf("error in Export command: %s", err)
+		return
+	}
+
+	for k, v := range stg.storage {
+		if k[3:] != v[3:] {
+			t.Errorf("error importing key, expected %s, got %s\n", k[3:], v[3:])
+			return
+		}
+		counter++
+	}
+
+	if counter != QUANTITY {
+		t.Errorf("error importing key, quantity doesn't match: expected %d, got %d\n", QUANTITY, counter)
+		return
+	}
 }
 
 func TestImportHandler(t *testing.T) {
@@ -45,11 +73,13 @@ func TestImportHandler(t *testing.T) {
 		return
 	}
 
-	fmt.Println(stg.storage)
 	for k, v := range stg.storage {
-		fmt.Printf("key: %s, val: %s\n", k, v)
+		if k[3:] != v[3:] {
+			t.Errorf("error importing key, expected %s, got %s\n", k[3:], v[3:])
+		}
 	}
 }
+
 func TestDelHandler(t *testing.T) {
 	ctx := context.Background()
 	stg := initStorage()
@@ -129,9 +159,19 @@ func (s *Storage) Delete(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
-func (s *Storage) Import(context.Context, []entity.ImportData) (bool, error) {
+func (s *Storage) Import(ctx context.Context, data []entity.ImportData) (bool, error) {
+	for _, i := range data {
+		s.Insert(ctx, i.Key, i.Value)
+	}
+
 	return true, nil
 }
 func (s *Storage) Export(context.Context) ([]entity.ExportData, error) {
-	return nil, nil
+	var exportData []entity.ExportData
+
+	for k, v := range s.storage {
+		exportData = append(exportData, entity.ExportData{k, v})
+	}
+
+	return exportData, nil
 }

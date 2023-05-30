@@ -32,14 +32,17 @@ var exportCmd = &cobra.Command{
 			return err
 		}
 
-		if err := Export(conn, cmd, args); err != nil {
+		data, err := Export(conn, cmd)
+		if err != nil {
 			return err
 		}
+
+		fmt.Fprintf(os.Stdout, "%s\n", data)
 		return nil
 	},
 }
 
-func Export(conn net.Conn, cmd *cobra.Command, args []string) error {
+func Export(conn net.Conn, cmd *cobra.Command) ([]byte, error) {
 	var buf []byte = make([]byte, 4)
 
 	defer conn.Close()
@@ -52,26 +55,26 @@ func Export(conn net.Conn, cmd *cobra.Command, args []string) error {
 	_, err := writer.Write(buf)
 	if err != nil {
 		err = errors.New("export command error", errors.WriteServerErr, err)
-		return err
+		return nil, err
 	}
 
 	err = writer.Flush()
 	if err != nil {
 		err = errors.New("export command error", errors.WriteServerErr, err)
-		return err
+		return nil, err
 	}
 
 	reader := bufio.NewReader(conn)
 	respBuf, err := reader.ReadBytes(EOT)
 	if err != nil {
 		err = errors.New("export command error", errors.ReadServerErr, err)
-		return err
+		return nil, err
 	}
 
 	if respBuf[0] == errors.ServerResponseError {
 		err = fmt.Errorf("%s", respBuf[1:])
 		err = errors.New("export command error", errors.ExpResponseError, err)
-		return err
+		return nil, err
 	}
 
 	// Trim response buffer: delete NULL and EOT bytes
@@ -81,10 +84,8 @@ func Export(conn net.Conn, cmd *cobra.Command, args []string) error {
 	err = util.ValidateData(respBuf)
 	if err != nil {
 		err = errors.New("export command error, validation of output failed", errors.InvalidExport, err)
-		return err
+		return nil, err
 	}
 
-	fmt.Fprintf(os.Stdout, "%s\n", respBuf)
-
-	return nil
+	return respBuf, err
 }
