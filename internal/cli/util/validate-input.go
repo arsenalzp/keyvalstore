@@ -37,13 +37,13 @@ func ValidateData(data []byte) error {
 func ValidateInput(key, value string) error {
 	switch {
 	case len(key) == 0:
-		return errors.New("input validation error: key shoudn't be empty", errors.InputValidationErr, nil)
+		return errors.New("input validation error: key shoudn't be empty", errors.KeyEmptyErr, nil)
 	case len(key) > KEY_LENGTH:
 		message := fmt.Sprintf("input validation error: key size is greater than %d bytes, current size: %d", KEY_LENGTH, len(key))
-		return errors.New(message, errors.InputValidationErr, nil)
+		return errors.New(message, errors.KeyLenExceededErr, nil)
 	case len(value) > VALUE_LENGTH:
 		message := fmt.Sprintf("input validation error: value size is greater than %d bytes, current size: %d", VALUE_LENGTH, len(key))
-		return errors.New(message, errors.InputValidationErr, nil)
+		return errors.New(message, errors.ValueLenExceededErr, nil)
 	default:
 		return nil
 	}

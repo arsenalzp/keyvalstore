@@ -22,7 +22,9 @@ const (
 	ExpResponseError    = "ECLI-0010"
 	ImpResponseError    = "ECLI-0011"
 	ServerResponseError = 'N'
-	InputValidationErr  = "ECLI-0012"
+	KeyLenExceededErr   = "ECLI-0012"
+	ValueLenExceededErr = "ECLI-1013"
+	KeyEmptyErr         = "ECLI-2014"
 )
 
 type errorCmd struct {
