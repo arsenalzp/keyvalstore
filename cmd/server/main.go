@@ -13,6 +13,7 @@ import (
 	"gokeyval/internal/server/storage"
 	"log"
 	"os"
+	"strconv"
 )
 
 const helpMessage string = `
@@ -36,13 +37,44 @@ func init() {
 }
 
 func main() {
+	// Read a server certificate
+	serverCertData, err := os.ReadFile(os.Getenv("SERVER_CERT"))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	// Read a server private key
+	serverPrivKeyData, err := os.ReadFile(os.Getenv("SERVER_KEY"))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	// Read CA certificate
+	rootCACertData, err := os.ReadFile(os.Getenv("ROOTCA_CERT"))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	var port int
+	if stringPort, ok := os.LookupEnv("SERVICE_PORT"); ok {
+		intPort, err := strconv.Atoi(stringPort)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		port = intPort
+	}
+
 	srv := server.Server{
-		CrlPath:     os.Getenv("CRL_PATH"),
-		CrtPath:     os.Getenv("SERVER_CERT"),
-		PrivkeyPath: os.Getenv("SERVER_KEY"),
-		RootcaPath:  os.Getenv("ROOTCA_CERT"),
-		Nic:         os.Getenv("SERVICE_NIC"),
-		Port:        os.Getenv("SERVICE_PORT"),
+		CrlPath:        os.Getenv("CRL_PATH"),
+		ServerCrtData:  serverCertData,
+		ServerKeyData:  serverPrivKeyData,
+		RootCACertData: rootCACertData,
+		Nic:            os.Getenv("SERVICE_NIC"),
+		Port:           port,
 	}
 
 	defer srv.Stop()

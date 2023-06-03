@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"gokeyval/internal/server/errors"
 	"gokeyval/internal/server/storage"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -14,50 +14,45 @@ import (
 )
 
 type Server struct {
-	tlsConf     *tls.Config
-	CrlPath     string
-	CrtPath     string
-	PrivkeyPath string
-	RootcaPath  string
-	Nic         string
-	IP          net.IP
-	Address     string
-	Port        string
-	Storage     *storage.Storage
-	lsnr        net.Listener
+	tlsConf        *tls.Config
+	CrlPath        string
+	ServerCrtData  []byte
+	ServerKeyData  []byte
+	RootCACertData []byte
+	Nic            string
+	IP             net.IP
+	Address        string
+	Port           int
+	Storage        *storage.Storage
+	lsnr           net.Listener
 }
 
 func (s *Server) Start() (net.Listener, error) {
 	err := s.initNetwork()
 	if err != nil {
-		err = errors.New("unable to start server", errors.SrvStartErr, err)
+		err = errors.New("unable to initialize network config", errors.SrvStartErr, err)
 		return nil, err
 	}
 
-	if s.CrtPath == "" || s.PrivkeyPath == "" || s.RootcaPath == "" || s.CrlPath == "" {
-		lsnr, err := net.Listen("tcp", s.Address)
-		if err != nil {
-			err = errors.New("unable to start server", errors.SrvStartErr, err)
-			return nil, err
-		}
-		s.lsnr = lsnr
-		return s.lsnr, nil
+	if s.CrlPath == "" || s.ServerCrtData == nil || s.ServerKeyData == nil || s.RootCACertData == nil {
+		err = errors.New("configuration error", errors.SrvStartErr, err)
+		return nil, err
 	}
 
 	lsnr, err := net.Listen("tcp", s.Address)
 	if err != nil {
-		err = errors.New("unable to start server", errors.SrvStartErr, err)
+		err = errors.New("unable to create listener", errors.SrvStartErr, err)
 		return nil, err
 	}
 	s.lsnr = lsnr
 
-	err = s.initTLS()
+	s.tlsConf, err = s.initTLS()
 	if err != nil {
-		err = errors.New("unable to start server", errors.SrvStartErr, err)
+		err = errors.New("unable to create SSL config", errors.SrvStartErr, err)
 		return nil, err
 	}
 
-	log.Printf("starting server on port %s\n", s.Port)
+	log.Printf("starting server on port %d\n", s.Port)
 
 	return s.lsnr, nil
 }
@@ -94,12 +89,11 @@ func (s *Server) initNetwork() error {
 
 	// get SERVICE_PORT from env variable
 	// else - use a port defined by command line argument
-
-	if s.Port != "" {
-		s.Address = s.IP.String() + ":" + s.Port
+	if s.Port != 0 {
+		s.Address = s.IP.String() + ":" + fmt.Sprint(s.Port)
 	} else {
-		s.Port = "6842"
-		s.Address = s.IP.String() + ":" + s.Port
+		s.Port = 6842
+		s.Address = s.IP.String() + ":" + fmt.Sprint(s.Port)
 	}
 
 	return nil
@@ -107,31 +101,29 @@ func (s *Server) initNetwork() error {
 
 // initTLS initialize TLS configration by loading server's certificate,
 // key, CA certificate and CRL
-func (s *Server) initTLS() error {
-	crt, err := tls.LoadX509KeyPair(s.CrtPath, s.PrivkeyPath)
+func (s *Server) initTLS() (*tls.Config, error) {
+	crt, err := tls.X509KeyPair(s.ServerCrtData, s.ServerKeyData)
 	if err != nil {
-		return errors.New("unabel to load certificate or key file", errors.KeyCertLoadErr, err)
+		return nil, errors.New("unabel to load certificate or key file", errors.KeyCertLoadErr, err)
 	}
 
-	rootCA, err := ioutil.ReadFile(s.RootcaPath)
+	caPool, err := createCAPool(s.RootCACertData)
 	if err != nil {
-		return errors.New("unabel to load root CA file", errors.CAcertLoadErr, err)
+		return nil, errors.New("unabel to load root CA file", errors.CAcertLoadErr, err)
 	}
 
-	caPool := x509.NewCertPool()
-
-	if ok := caPool.AppendCertsFromPEM(rootCA); !ok {
-		return errors.New("unabel to add root CA into the pool", errors.CAPoolLoadErr, nil)
-	}
-
-	s.tlsConf = &tls.Config{
+	tlsConf := &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		MinVersion:   tls.VersionTLS13,
 		Certificates: []tls.Certificate{crt},
 		ClientCAs:    caPool,
-		ServerName:   "server.example.com",
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-			err := checkCertWithCRL(verifiedChains[0][0], s.CrlPath)
+			crl, err := parseCRL(s.CrlPath)
+			if err != nil {
+				return err
+			}
+
+			err = checkCertWithCRL(verifiedChains[0][0], crl)
 			if err != nil {
 				return err
 			}
@@ -139,18 +131,11 @@ func (s *Server) initTLS() error {
 		},
 	}
 
-	return nil
+	return tlsConf, err
 }
 
-func checkCertWithCRL(cert *x509.Certificate, crlPath string) error {
-	// Parse CRL file which is accessible by crlPath
-	crl, err := parseCRL(crlPath)
-	if err != nil {
-		err := errors.New("certificate validation error", errors.CRLValidErr, err)
-		return err
-	}
-
-	// Check provided certificate cert against CRL
+// Check provided certificate cert against CRL
+func checkCertWithCRL(cert *x509.Certificate, crl *pkix.CertificateList) error {
 	for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
 		if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			err := errors.New("certificate was revoked", errors.CRLCertRevokErr, nil)
@@ -160,35 +145,26 @@ func checkCertWithCRL(cert *x509.Certificate, crlPath string) error {
 	return nil
 }
 
+// Parse CRL file which is accessible by crlPath
 func parseCRL(crlPath string) (*pkix.CertificateList, error) {
-	var crl *pkix.CertificateList
-
-	f, err := os.Open(crlPath)
+	crlData, err := os.ReadFile(crlPath)
 	if err != nil {
-		err := errors.New("unabel to load CRL file", errors.CRLOpenErr, err)
+		err := errors.New("unabel to read CRL file", errors.CRLLoadErr, err)
 		return nil, err
 	}
 
-	defer f.Close()
-
-	crlData, err := ioutil.ReadAll(f)
-	if err != nil {
-		err := errors.New("unabel to load CRL file", errors.CRLLoadErr, err)
-		return nil, err
-	}
-
-	crl, err = x509.ParseCRL(crlData)
+	crlList, err := x509.ParseCRL(crlData)
 	if err != nil {
 		err := errors.New("unabel to parse CRL data", errors.CRLParseErr, err)
 		return nil, err
 	}
 
-	if crl.TBSCertList.NextUpdate.Before(time.Now()) {
+	if crlList.TBSCertList.NextUpdate.Before(time.Now()) {
 		err := errors.New("CRL is outdated", errors.CRLExpiredErr, nil)
 		return nil, err
 	}
 
-	return crl, nil
+	return crlList, nil
 }
 
 // retrieve IP address from the give NIC
@@ -221,4 +197,14 @@ func (s *Server) getIP(nic string) (net.IP, error) {
 
 func (s *Server) GetTlsConf() *tls.Config {
 	return s.tlsConf
+}
+
+func createCAPool(rootCA []byte) (*x509.CertPool, error) {
+	caPool := x509.NewCertPool()
+
+	if ok := caPool.AppendCertsFromPEM(rootCA); !ok {
+		return nil, errors.New("unable to append CAcert into CAPool", errors.CAPoolLoadErr, nil)
+	}
+
+	return caPool, nil
 }
