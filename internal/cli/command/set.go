@@ -9,7 +9,6 @@ import (
 	"gokeyval/internal/cli/util"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -40,7 +39,7 @@ var setCmd = &cobra.Command{
 }
 
 func Set(conn net.Conn, cmd *cobra.Command, args []string) error {
-	var substr []string
+	var key, value []byte
 	var buf [MESSAGE_SIZE]byte // command 3B, key 256B, value 511B
 
 	defer conn.Close()
@@ -48,32 +47,36 @@ func Set(conn net.Conn, cmd *cobra.Command, args []string) error {
 	// read data from arguments
 	// else read data from stdin
 	if len(args) > 0 {
-		substr = strings.SplitN(args[0], "=", 2) // split key and value from args
+		key, value = readArgs(args)
 	} else {
-		r := bufio.NewReader(os.Stdin)
-		input, err := r.ReadString(byte('\n')) // read data from stdin
+		var err error
+
+		reader := bufio.NewReader(os.Stdin)
+
+		key, value, err = readStdin(reader)
 		if err != nil {
-			err = errors.New("set command error", errors.ReadStdinErr, err)
+			err := errors.New("set command error", errors.ReadStdinErr, err)
 			return err
 		}
-		substr = strings.Split(input, "=") // split key and value from stdin
 	}
 
-	if len(substr) == 1 {
-		return fmt.Errorf("key and val shouldn't be empty")
-	}
+	// sanitize the key data
+	key = sanitizeData(key)
+
+	// sanitize the value data
+	value = sanitizeData(value)
 
 	// validate the key and the value data parameters
-	err := util.ValidateInput(args[0], substr[1])
+	err := util.ValidateInput(key, value)
 	if err != nil {
 		return err
 	}
 
 	writer := bufio.NewWriter(conn)
 
-	copy(buf[0:3], []byte("set"))       // copy the command data
-	copy(buf[3:259], []byte(substr[0])) // copy the key data
-	copy(buf[259:], []byte(substr[1]))  // copy the value data
+	copy(buf[0:3], []byte("set")) // copy the command data
+	copy(buf[3:259], key)         // copy the key data
+	copy(buf[259:], value)        // copy the value data
 	buf[771] = EOT
 
 	_, err = writer.Write(buf[:]) // write command, key and val

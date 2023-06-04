@@ -43,20 +43,40 @@ var getCmd = &cobra.Command{
 }
 
 func Get(conn net.Conn, cmd *cobra.Command, args []string) ([]byte, error) {
+	var key []byte
 	var buf [MESSAGE_SIZE]byte
 
 	defer conn.Close()
 
+	// read data from arguments
+	// else read data from stdin
+	if len(args) > 0 {
+		key, _ = readArgs(args)
+	} else {
+		var err error
+
+		reader := bufio.NewReader(os.Stdin)
+
+		key, _, err = readStdin(reader)
+		if err != nil {
+			err := errors.New("del command error", errors.ReadStdinErr, err)
+			return nil, err
+		}
+	}
+
+	// sanitize the key data
+	key = sanitizeData(key)
+
 	// validate the key data parameter
-	err := util.ValidateInput(args[0], "")
+	err := util.ValidateInput(key, []byte{})
 	if err != nil {
 		return nil, err
 	}
 
 	writer := bufio.NewWriter(conn)
 
-	copy(buf[0:3], []byte("get"))     // copy the command data
-	copy(buf[3:259], []byte(args[0])) // copy the key data
+	copy(buf[0:3], []byte("get")) // copy the command data
+	copy(buf[3:259], key)         // copy the key data
 	buf[771] = EOT
 
 	_, err = writer.Write(buf[:]) // write command, key and val

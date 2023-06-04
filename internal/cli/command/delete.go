@@ -8,6 +8,7 @@ import (
 	"gokeyval/internal/cli/errors"
 	"gokeyval/internal/cli/util"
 	"net"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -38,20 +39,40 @@ var delCmd = &cobra.Command{
 }
 
 func Del(conn net.Conn, cmd *cobra.Command, args []string) error {
+	var key []byte
 	var buf [MESSAGE_SIZE]byte
 
 	defer conn.Close()
 
+	// read data from arguments
+	// else read data from stdin
+	if len(args) > 0 {
+		key, _ = readArgs(args)
+	} else {
+		var err error
+
+		reader := bufio.NewReader(os.Stdin)
+
+		key, _, err = readStdin(reader)
+		if err != nil {
+			err := errors.New("del command error", errors.ReadStdinErr, err)
+			return err
+		}
+	}
+
+	// sanitize the key data
+	key = sanitizeData(key)
+
 	// validate the key data parameter
-	err := util.ValidateInput(args[0], "")
+	err := util.ValidateInput(key, []byte{})
 	if err != nil {
 		return err
 	}
 
 	writer := bufio.NewWriter(conn)
 
-	copy(buf[0:3], []byte("del"))  // copy the command data
-	copy(buf[3:], []byte(args[0])) // copy the key data
+	copy(buf[0:3], []byte("del")) // copy the command data
+	copy(buf[3:], key)            // copy the key data
 	buf[771] = EOT
 
 	_, err = writer.Write(buf[:])

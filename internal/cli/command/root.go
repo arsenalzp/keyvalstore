@@ -3,6 +3,7 @@
 package command
 
 import (
+	"bufio"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -129,4 +130,38 @@ func initTLS() error {
 	}
 
 	return nil
+}
+
+// get key and value from STDIN
+func readStdin(r *bufio.Reader) ([]byte, []byte, error) {
+	input, err := r.ReadString(byte('\n')) // read data from stdin
+	if err != nil {
+		err = errors.New("set command error", errors.ReadStdinErr, err)
+		return nil, nil, err
+	}
+	substr := strings.Split(input, " ") // split key and value from stdin
+
+	return []byte(substr[0]), []byte(substr[1]), nil
+}
+
+// get key and value from CLI arguments
+func readArgs(args []string) ([]byte, []byte) {
+	if len(args) == 2 {
+		return []byte(args[0]), []byte(args[1])
+	}
+	return []byte(args[0]), []byte{}
+}
+
+// remove EOT symbol from the input
+func sanitizeData(data []byte) []byte {
+	var newData []byte
+
+	for _, r := range data {
+		if r == EOT {
+			continue
+		}
+		newData = append(newData, r)
+	}
+
+	return newData
 }
