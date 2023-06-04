@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	cli "gokeyval/internal/cli/command"
@@ -99,6 +100,7 @@ func TestDelHandler(t *testing.T) {
 		return
 	}
 }
+
 func TestSetHandler(t *testing.T) {
 	ctx := context.Background()
 	stg := initStorage()
@@ -106,7 +108,7 @@ func TestSetHandler(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	go HandleCon(ctx, serverConn, stg)
 
-	err := cli.Set(clientConn, nil, []string{KEY + "=" + VALUE})
+	err := cli.Set(clientConn, nil, []string{KEY, VALUE})
 	if err != nil {
 		t.Errorf("error in Set command: %s", err)
 		return
@@ -116,6 +118,33 @@ func TestSetHandler(t *testing.T) {
 		t.Errorf("error getting value in Set Handler, expected: %s, got: %s\n", VALUE, value)
 		return
 	}
+}
+
+func FuzzSetHandler(f *testing.F) {
+	f.Add("data", "data")
+	f.Fuzz(func(t *testing.T, k, v string) {
+		ctx := context.Background()
+		stg := initStorage()
+
+		clientConn, serverConn := net.Pipe()
+		go HandleCon(ctx, serverConn, stg)
+		fmt.Println(k, v)
+		if keyValSkip(k, v) {
+			t.Skip()
+		}
+
+		err := cli.Set(clientConn, nil, []string{k, v})
+		if err != nil {
+			t.Errorf("error in Set command: %s", err)
+			return
+		}
+
+		if value := stg.storage[k]; value != v {
+			t.Errorf("error getting value in Set Handler, expected: %v, got: %v\n", []byte(k), []byte(value))
+			fmt.Println(stg.storage)
+			return
+		}
+	})
 }
 
 func TestGetHandler(t *testing.T) {
@@ -173,4 +202,19 @@ func (s *Storage) Export(context.Context) ([]entity.ExportData, error) {
 	}
 
 	return exportData, nil
+}
+
+func keyValSkip(k, v string) bool {
+	if len(k) == 0 || len(k) > 256 || len(v) == 0 || len(v) > 256 {
+		return true
+	}
+
+	if bytes.Contains([]byte(k), []byte{4}) ||
+		bytes.Contains([]byte(v), []byte{4}) ||
+		bytes.Contains([]byte(k), []byte{0}) ||
+		bytes.Contains([]byte(v), []byte{0}) {
+		return true
+	}
+
+	return false
 }

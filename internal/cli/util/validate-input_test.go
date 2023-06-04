@@ -9,7 +9,7 @@ const RAW_DATA = `[{"key":"key694","value":"val694"},{"key":"key132","value":"va
 
 func TestValidateInput(t *testing.T) {
 	for k, v := range populateTestSet(100) {
-		err := ValidateInput(k, v)
+		err := ValidateInput([]byte(k), []byte(v))
 		if err != nil {
 			t.Errorf("testing of validation input function failed: %s\n", err)
 			return
