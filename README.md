@@ -4,7 +4,7 @@ The simple key-value storage that uses either hash-table or
 SQLite underlying storage.
 
 It uses client-server architecture, a set of commands are sent by using TLS transport.
-Node.js client is provided as well.
+Node.js and golang clients are provided as well.
 
 PKI is used for end-user authentication with; Certificate Revocation List capability is enabled.
 
@@ -14,7 +14,7 @@ Message size: 771 byte
 | Command   | Key       | Value     | EOT
 |-----------|-----------|-----------|---------|
 | Bytes     | Bytes     | Bytes     | Bytes
-| 0-2       | 3-258     | 259-770   | 771
+| 0-3       | 3-257     | 257-771   | 771
 
 ### A set of commands:
 + SET - set a value to a key
@@ -111,7 +111,7 @@ The following parameters are required:
 
 SET command:
 ```
-  % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port set key=val
+  % ./cli --cert ./client.crt --key ./client.key --CAcert ./rootCA.crt -s server:port set key value
 ```
 
 GET command:
