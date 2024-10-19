@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/arsenalzp/keyvalstore/cmd/server/server"
 	"github.com/arsenalzp/keyvalstore/internal/server/errors"
 	hndlr "github.com/arsenalzp/keyvalstore/internal/server/handler" // import handlers
 	"github.com/arsenalzp/keyvalstore/internal/server/storage"
@@ -69,7 +68,7 @@ func main() {
 		port = intPort
 	}
 
-	srv := server.Server{
+	srv := Server{
 		CrlPath:        os.Getenv("CRL_PATH"),
 		ServerCrtData:  serverCertData,
 		ServerKeyData:  serverPrivKeyData,

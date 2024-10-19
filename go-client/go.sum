@@ -1,4 +1,2 @@
-github.com/arsenalzp/keyvalstore v0.0.0-20241019140203-a98269bd6669 h1:SkIP3jyEiAUmDsnLZ7tXImzr92+Z7KRdkOqpVC7eTGw=
-github.com/arsenalzp/keyvalstore v0.0.0-20241019140203-a98269bd6669/go.mod h1:cHtT6i96PkQACSc+h7oLqnU+f7orMc32HEBYBOwgMWk=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
